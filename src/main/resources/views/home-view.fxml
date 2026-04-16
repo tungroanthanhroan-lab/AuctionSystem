@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- Import Insets để tạo khoảng đệm -->
+<?import javafx.geometry.Insets?>
+
+<!-- Import các control cần dùng -->
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+
+<!-- Import layout VBox -->
+<?import javafx.scene.layout.VBox?>
+
+<!--
+    Đây là màn hình Home đơn giản.
+    Tạm thời chỉ có tiêu đề và một nút để test.
+-->
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="org.example.controller.HomeController"
+      alignment="CENTER"
+      spacing="15">
+
+    <!-- Tạo khoảng trống quanh giao diện -->
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20"/>
+    </padding>
+
+    <!-- Tiêu đề màn hình -->
+    <Label text="Chào mừng đến với Auction System"/>
+
+    <!-- Nút test để kiểm tra controller -->
+    <Button text="Xem danh sách đấu giá" onAction="#handleViewAuctions"/>
+</VBox>
