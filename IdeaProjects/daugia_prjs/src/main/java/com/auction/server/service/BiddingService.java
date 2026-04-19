@@ -85,7 +85,7 @@ public class BiddingService {
                 }
             }
 
-            // 2. nếu có người đủ điều kiện, thực hiện trả giá tự động
+            // 2. nếu có người đủ đk, thực hiện trả giá tự động
             if (!eligibleBids.isEmpty()) {
                 // Ưu tiên theo thời điểm đăng ký auto-bid (ai đăng ký trước được xử lý trước)
                 eligibleBids.sort(Comparator.comparing(AutoBid::getRegistrationTime)); // dùng sort để săp xếp theo RegisterationTime
