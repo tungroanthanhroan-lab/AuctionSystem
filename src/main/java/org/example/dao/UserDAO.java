@@ -1,11 +1,11 @@
 package org.example.dao;
 
-package org.example.dao;
-
 import org.example.util.DatabaseConnection; // Nhập thư viện Singleton
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import org.example.model.User;
+import java.sql.ResultSet;
 
 public class UserDAO {
     // Tạo bảng nếu chưa tồn tại bảng nào
@@ -45,5 +45,30 @@ public class UserDAO {
             System.out.println("Lỗi đăng ký: Có thể username đã tồn tại.");
             return false;
         }
+    }
+
+    public User login(String username, String password) {
+        String sql = "SELECT * FROM users WHERE username = ? AND password = ?";
+        Connection conn = DatabaseConnection.getConnection();
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                // Nếu tìm thấy user, đóng gói vào đối tượng User
+                return new User(
+                        rs.getInt("id"),
+                        rs.getString("username"),
+                        rs.getString("password"),
+                        rs.getString("role")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null; // Trả về null nếu đăng nhập thất bại
     }
 }
