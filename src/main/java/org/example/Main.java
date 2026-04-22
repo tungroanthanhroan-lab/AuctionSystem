@@ -1,17 +1,43 @@
 package org.example;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-public class Main {
-    static void main() {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        IO.println(String.format("Hello and welcome!"));
+// Import Application để tạo app JavaFX
+import javafx.application.Application;
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            IO.println("i = " + i);
-        }
+// Import FXMLLoader để load file FXML
+import javafx.fxml.FXMLLoader;
+
+// Import Parent làm node gốc của giao diện
+import javafx.scene.Parent;
+
+// Import Scene để chứa giao diện
+import javafx.scene.Scene;
+
+// Import Stage là cửa sổ chính
+import javafx.stage.Stage;
+
+public class Main extends Application {
+
+    @Override
+    public void start(Stage stage) throws Exception {
+        // Load file giao diện login từ thư mục resources/views
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/login-view.fxml"));
+        Parent root = loader.load();
+
+        // Tạo scene với kích thước 400x300
+        Scene scene = new Scene(root, 400, 300);
+
+        // Đặt tiêu đề cửa sổ
+        stage.setTitle("Auction System - Login");
+
+        // Gắn scene vào stage
+        stage.setScene(scene);
+
+        // Hiển thị cửa sổ
+        stage.show();
+    }
+
+    public static void main(String[] args) {
+        // Khởi chạy ứng dụng JavaFX
+        launch(args);
     }
 }
