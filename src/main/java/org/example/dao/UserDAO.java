@@ -1,7 +1,5 @@
 package org.example.dao;
 
-package org.example.dao;
-
 import org.example.util.DatabaseConnection; // Nhập thư viện Singleton
 import java.sql.Connection;
 import java.sql.PreparedStatement;
