@@ -1,17 +1,25 @@
 package org.example;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-public class Main {
-    static void main() {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        IO.println(String.format("Hello and welcome!"));
+import org.example.dao.UserDAO;
+import org.example.model.User;
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            IO.println("i = " + i);
+public class Main {
+    public static void main(String[] args) {
+        UserDAO userDAO = new UserDAO();
+
+        // 1. Tạo bảng (nếu chưa có)
+        userDAO.createTableIfNotExists();
+
+        // 2. Đăng ký thử 1 user
+        boolean isRegistered = userDAO.registerUser("admin", "123456", "ADMIN");
+        if (isRegistered) System.out.println("Đăng ký thành công!");
+
+        // 3. Đăng nhập thử
+        User user = userDAO.login("admin", "123456");
+        if (user != null) {
+            System.out.println("Chào mừng: " + user.getUsername() + " với quyền: " + user.getRole());
+        } else {
+            System.out.println("Sai tài khoản hoặc mật khẩu!");
         }
     }
 }
