@@ -1,11 +1,9 @@
 package controller;
 
+import clone.main.java.com.auction.common.model.Bidder;
 import exception.AuctionCloseException;
 import exception.InvalidBidException;
 import service.AuctionService;
-import service.BidTransaction;
-
-interface Bidder{} // xoa sau khi clone code
 
 public class AuctionServerController {
     private AuctionService auction;

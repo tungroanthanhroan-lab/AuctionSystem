@@ -1,5 +1,7 @@
 package service;
 
+import clone.main.java.com.auction.common.model.Bidder;
+
 import java.time.LocalDateTime;
 
 public class BidTransaction {

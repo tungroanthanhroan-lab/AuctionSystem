@@ -1,20 +1,21 @@
 package service;
 
+import clone.main.java.com.auction.common.model.Bidder;
+import clone.main.java.com.auction.common.model.Item;
 import exception.AuctionCloseException;
 import exception.InvalidBidException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-
-interface Item {}// se xoa sau khi clone code**
-interface Bidder {}
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 // phien dau gia con mo khong
 // gia co cao hon hien tai khong (logic)
 // hop le -> tiep tuc
 public class AuctionService {
-    private String auctionid;
+    private String auctionId;
     private Item item;
     private Bidder currentLeader;
     private AuctionStatus status;
@@ -23,8 +24,8 @@ public class AuctionService {
     private LocalDateTime endTime;
     private List<BidTransaction> bidHistory;
 
-    public AuctionService(String auctionid, Item item, Bidder currentLeader, AuctionStatus status, double startingPrice, LocalDateTime startTime, LocalDateTime endTime) {
-        this.auctionid = auctionid;
+    public AuctionService(String auctionId, Item item, Bidder currentLeader, AuctionStatus status, double startingPrice, LocalDateTime startTime, LocalDateTime endTime) {
+        this.auctionId = auctionId;
         this.item = item;
         this.currentLeader = currentLeader;
         this.status = AuctionStatus.OPEN;
@@ -34,12 +35,12 @@ public class AuctionService {
         this.bidHistory = new ArrayList<>();
     }
 
-    public String getAuctionid() {
-        return auctionid;
+    public String getAuctionId() {
+        return auctionId;
     }
 
-    public void setAuctionid(String auctionid) {
-        this.auctionid = auctionid;
+    public void setAuctionId(String auctionId) {
+        this.auctionId = auctionId;
     }
 
     public Item getItem() {
@@ -98,32 +99,41 @@ public class AuctionService {
         this.bidHistory = bidHistory;
     }
 
+    //dung reentranlock thay vi synchroized
+    private final Lock lock = new ReentrantLock(true);
+
     /**
      * xu li logic dat gia cua nguoi dung
      * guard clause bat loi
      */
-    public synchronized void placeBid(Bidder bidder, double bidAmount) {
-        //kiem tra trang thai phien dau gia
-        if (this.status != AuctionStatus.RUNNING) {
-            throw new AuctionCloseException("Phien dau gia nay hien khong mo! Vui long quay lai sau!");
+    public void placeBid(Bidder bidder, double bidAmount) {
+        lock.lock();
+        try {
+            //kiem tra trang thai phien dau gia
+            if (status != AuctionStatus.RUNNING) {
+                throw new AuctionCloseException("Phien dau gia nay hien khong mo! Vui long quay lai sau!");
+            }
+
+            //kiem tra dat gia phai cao hon gia hien tai
+            if (bidAmount <= currentHighestBid) {
+                throw new InvalidBidException("Muc gia dat phai cao hon muc gia hien tai");
+            }
+
+            //kiem tra thoi gian de phong loi luong chua kip dong phien
+            if (LocalDateTime.now().isAfter(endTime)) {
+                closeAuction();
+                throw new AuctionCloseException("Phien dau gia hien da dong!");
+            }
+            //cap nhat nguoi dan dau va muc gia
+            currentHighestBid = bidAmount;
+            currentLeader = bidder;
+
+            BidTransaction transaction = new BidTransaction(bidder, bidAmount, LocalDateTime.now());
+            bidHistory.add(transaction);
+        } finally {
+            lock.unlock();
         }
 
-        //kiem tra dat gia phai cao hon gia hien tai
-        if (bidAmount <= this.currentHighestBid) {
-            throw new InvalidBidException("Muc gia dat phai cao hon muc gia hien tai");
-        }
-
-        //kiem tra thoi gian de phong loi luong chua kip dong phien
-        if (LocalDateTime.now().isAfter(endTime)) {
-            closeAuction();
-            throw new AuctionCloseException("Phien dau gia hien da dong!");
-        }
-        //cap nhat nguoi dan dau va muc gia
-        this.currentHighestBid = bidAmount;
-        this.currentLeader = bidder;
-
-        BidTransaction transaction = new BidTransaction(bidder, bidAmount, LocalDateTime.now());
-        this.bidHistory.add(transaction);
 
         // TODO: (Nâng cao) Kích hoạt Event/Observer để thông báo realtime cho các client khác
 
@@ -133,12 +143,12 @@ public class AuctionService {
      * logic dong phien dau gia
      */
     public synchronized void closeAuction() {
-        if (this.status == AuctionStatus.RUNNING) {
-            this.status = AuctionStatus.FINISHED; //chuyen trang thai sang hoan thanh
+        if (status == AuctionStatus.RUNNING) {
+            status = AuctionStatus.FINISHED; //chuyen trang thai sang hoan thanh
 
             //xac dinh nguoi thang cuoc
-            if (this.currentLeader != null) {
-                System.out.println("Phien dau gia ket thuc, nguoi thang cuoc la " + this.currentLeader);
+            if (currentLeader != null) {
+                System.out.println("Phien dau gia ket thuc, nguoi thang cuoc la " + currentLeader);
             } else {
                 System.out.println("Phien dau gia ket thuc, khong co nguoi dat gia");
             }
