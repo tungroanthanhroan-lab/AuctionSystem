@@ -1,5 +1,8 @@
 package service;
 
+import exception.AuctionCloseException;
+import exception.InvalidBidException;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -7,8 +10,6 @@ import java.util.List;
 interface Item {}// se xoa sau khi clone code**
 interface Bidder {}
 
-interface currentLeader{
-}
 // phien dau gia con mo khong
 // gia co cao hon hien tai khong (logic)
 // hop le -> tiep tuc
@@ -104,18 +105,18 @@ public class AuctionService {
     public synchronized void placeBid(Bidder bidder, double bidAmount) {
         //kiem tra trang thai phien dau gia
         if (this.status != AuctionStatus.RUNNING) {
-            throw new IllegalStateException("Phien dau gia nay hien khong mo! Vui long quay lai sau!");
+            throw new AuctionCloseException("Phien dau gia nay hien khong mo! Vui long quay lai sau!");
         }
 
         //kiem tra dat gia phai cao hon gia hien tai
         if (bidAmount <= this.currentHighestBid) {
-            throw new IllegalArgumentException("Muc gia dat phai cao hon muc gia hien tai");
+            throw new InvalidBidException("Muc gia dat phai cao hon muc gia hien tai");
         }
 
         //kiem tra thoi gian de phong loi luong chua kip dong phien
         if (LocalDateTime.now().isAfter(endTime)) {
             closeAuction();
-            throw new IllegalStateException("Phien dau gia hien da dong!");
+            throw new AuctionCloseException("Phien dau gia hien da dong!");
         }
         //cap nhat nguoi dan dau va muc gia
         this.currentHighestBid = bidAmount;
