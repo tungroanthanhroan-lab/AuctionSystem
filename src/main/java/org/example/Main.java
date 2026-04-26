@@ -14,6 +14,7 @@ import javafx.scene.Scene;
 
 // Import Stage là cửa sổ chính
 import javafx.stage.Stage;
+import org.example.dao.UserDAO;
 
 public class Main extends Application {
 
@@ -37,6 +38,8 @@ public class Main extends Application {
     }
 
     public static void main(String[] args) {
+        new UserDAO().createTableIfNotExists();
+        new UserDAO().registerUser("Phuscc", "09122007","admin");
         // Khởi chạy ứng dụng JavaFX
         launch(args);
     }

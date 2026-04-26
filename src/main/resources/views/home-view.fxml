@@ -25,8 +25,7 @@
     </padding>
 
     <!-- Tiêu đề màn hình -->
-    <Label text="Chào mừng đến với Auction System"/>
-
+    <Label fx:id="welcomeLabel" text="Chào mừng đến với Auction System"/>
     <!-- Nút test để kiểm tra controller -->
     <Button text="Xem danh sách đấu giá" onAction="#handleViewAuctions"/>
 </VBox>

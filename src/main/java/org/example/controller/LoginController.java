@@ -27,6 +27,8 @@ import javafx.event.ActionEvent;
 
 // Import Stage là cửa sổ hiện tại
 import javafx.stage.Stage;
+import org.example.dao.UserDAO;
+import org.example.model.User;
 
 public class LoginController {
 
@@ -55,10 +57,10 @@ public class LoginController {
         if (username.isEmpty() || password.isEmpty()) {
             showAlert("Lỗi", "Không được để trống!");
         }
-        // Kiểm tra tài khoản mẫu để test giao diện
-        else if (username.equals("admin") && password.equals("123")) {
-            // Nếu đúng thì chuyển sang màn hình Home
-            openHomeScreen(event);
+        UserDAO userDAO = new UserDAO();
+        User user = userDAO.login(username, password);
+        if (user != null){
+            openHomeScreen(event,user);
         }
         // Nếu sai tài khoản hoặc mật khẩu thì hiện popup lỗi
         else {
@@ -67,11 +69,14 @@ public class LoginController {
     }
 
     // Hàm dùng để mở màn hình Home
-    private void openHomeScreen(ActionEvent event) {
+    private void openHomeScreen(ActionEvent event, User user) {
         try {
             // Load file home-view.fxml từ resources/views
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/home-view.fxml"));
             Parent root = loader.load();
+
+            HomeController homeController = loader.getController();
+            homeController.setUser(user);
 
             // Tạo scene mới cho màn Home
             Scene homeScene = new Scene(root, 500, 350);
