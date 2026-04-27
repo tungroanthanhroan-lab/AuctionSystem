@@ -24,23 +24,15 @@ public class AuctionServer {
 
                 System.out.println("Ting ting! Có một khách hàng vừa kết nối: " + clientSocket.getInetAddress());
 
-                // 2 Hàm để nhận thông tin và trả lời
-                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+                // Chuyển người dùng cho ClientHandler
+                ClientHandler handler = new ClientHandler(clientSocket);
 
-                // Nhận yêu cầu
-                String clientMessage = in.readLine();
-                System.out.println("Khách hàng yêu cầu: " + clientMessage);
+                // Đẩy ra luồng riêng để chạy song song
+                Thread thread = new Thread(handler);
+                thread.start();
 
-                // Nhận yêu cầu thành công
-                out.println("Chào Bạn! Hệ thống đã nhận được yêu cầu: [" + clientMessage + "]. Chờ chút để báo Database nhé!");
-
-                // Đóng kết nối để quay lại cửa đón người khác
-                clientSocket.close();
-                System.out.println("Đã phục vụ xong 1 khách.");
-                System.out.println();
+                // Server lập tức quay lại bước 1 chờ người dùng mới
             }
-
         } catch (IOException e) {
             System.err.println("Lỗi Server: Cổng " + PORT + " có thể đã bị phần mềm khác chiếm dụng!");
             e.printStackTrace();

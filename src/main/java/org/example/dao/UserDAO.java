@@ -34,7 +34,7 @@ public class UserDAO {
 
         Connection conn = DatabaseConnection.getConnection();
 
-        // 2. Cho xe rùa chở 3 món hàng (username, pass, role) chạy xuống DB
+        // Cho 3 dữ liệu vừa nhập (username, pass, role) chạy xuống DB
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, password);
