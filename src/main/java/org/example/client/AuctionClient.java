@@ -7,28 +7,50 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 public class AuctionClient {
-    public static void main(String[] args) {
-        System.out.println("Đang tìm đường đến Server...");
 
-        // Tìm đến máy có địa chỉ "localhost" với port là 8080
-        try (Socket socket = new Socket("localhost", 8080)) {
-            System.out.println("Đã kết nối thành công với Server!");
+    // Địa chỉ server. Vì chạy cùng máy nên dùng localhost.
+    private static final String SERVER_HOST = "localhost";
 
-            // Hai đối tượng để tạo yêu cầu và nhận thông tin từ server
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    // Port phải trùng với port bên AuctionServer.
+    private static final int SERVER_PORT = 8080;
 
-            // Gửi tin cho Server
-            String myMessage = "Cho tôi đăng nhập với user: admin, pass: 123456";
-            out.println(myMessage);
-            System.out.println("Tôi đã gửi: " + myMessage);
+    /**
+     * Gửi yêu cầu đăng nhập từ client lên server.
+     *
+     * @param username tài khoản người dùng nhập ở giao diện
+     * @param password mật khẩu người dùng nhập ở giao diện
+     * @return phản hồi từ server, ví dụ:
+     *         LOGIN_SUCCESS|admin|ADMIN
+     *         LOGIN_FAILED|Sai tài khoản hoặc mật khẩu
+     *         ERROR|Không kết nối được tới server
+     */
+    public String login(String username, String password) {
+        // try-with-resources giúp tự động đóng socket, input, output sau khi xử lý xong.
+        try (
+                Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
+        ) {
+            // Quy ước gói tin gửi cho server:
+            // LOGIN|username|password
+            String request = "LOGIN|" + username + "|" + password;
 
-            // Server phản hồi
-            String serverReply = in.readLine();
-            System.out.println("Server trả lời: " + serverReply);
+            // Gửi request sang server.
+            out.println(request);
+
+            // Chờ server trả lời một dòng kết quả.
+            return in.readLine();
 
         } catch (IOException e) {
-            System.err.println("Không tìm thấy Server! Chắc chưa bật Server.");
+            // Nếu server chưa bật hoặc mất kết nối thì trả về lỗi cho LoginController xử lý popup.
+            return "ERROR|Không kết nối được tới server";
         }
+    }
+    public static void main(String[] args) {
+        AuctionClient client = new AuctionClient();
+
+        String response = client.login("abc", "123");
+
+        System.out.println("Server trả về: " + response);
     }
 }

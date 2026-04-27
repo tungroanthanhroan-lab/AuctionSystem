@@ -4,9 +4,12 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import org.example.model.User;
+
+import java.io.IOException;
 
 public class HomeController {
 
@@ -15,30 +18,48 @@ public class HomeController {
 
     private User currentUser;
 
-    public void setUser(User user){
+    public void setUser(User user) {
         this.currentUser = user;
         welcomeLabel.setText("Xin chào, " + user.getUsername() + " (" + user.getRole() + ")");
     }
 
-    // ĐÃ SỬA: Hàm này giờ sẽ mở màn hình Bidding thay vì hiện Popup
+    /**
+     * Khi bấm nút "Xem danh sách đấu giá",
+     * chuyển từ màn hình Home sang màn hình Bidding.
+     */
     @FXML
     private void handleViewAuctions() {
         try {
-            // 1. Tìm và tải file giao diện đấu giá
-            FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("/views/bidding-view.fxml"));
+            FXMLLoader fxmlLoader = new FXMLLoader(
+                    getClass().getResource("/views/bidding-view.fxml")
+            );
+
             Parent root = fxmlLoader.load();
 
-            // 2. Tạo một cửa sổ mới
-            Stage stage = new Stage();
-            stage.setTitle("Màn hình Đấu giá Trực tiếp");
-            stage.setScene(new Scene(root));
+            // Lấy cửa sổ hiện tại từ welcomeLabel
+            Stage stage = (Stage) welcomeLabel.getScene().getWindow();
 
-            // 3. Hiển thị cửa sổ đấu giá lên
+            // Thay scene hiện tại bằng scene đấu giá
+            stage.setScene(new Scene(root));
+            stage.setTitle("Màn hình Đấu giá Trực tiếp");
             stage.show();
 
-        } catch (Exception e) {
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không thể tải file bidding-view.fxml");
             e.printStackTrace();
-            System.out.println("Lỗi: Không thể tải file bidding-view.fxml");
         }
+    }
+
+    /**
+     * Hàm hiện popup lỗi.
+     */
+    private void showAlert(Alert.AlertType type, String title, String content) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
     }
 }

@@ -31,10 +31,10 @@
     <Label text="Đăng nhập"/>
 
     <!-- Ô nhập username, liên kết với biến usernameField trong LoginController -->
-    <TextField fx:id="usernameField" promptText="Username"/>
+    <TextField fx:id="txtUsername" promptText="Username"/>
 
     <!-- Ô nhập password, liên kết với biến passwordField trong LoginController -->
-    <PasswordField fx:id="passwordField" promptText="Password"/>
+    <PasswordField fx:id="txtPassword" promptText="Password" onAction="#handleLogin"/>
 
     <!-- Nút Login, khi bấm sẽ gọi hàm handleLogin() trong LoginController -->
     <Button fx:id="loginButton" text="Login" onAction="#handleLogin" defaultButton="true"/>

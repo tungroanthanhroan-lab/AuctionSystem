@@ -1,122 +1,125 @@
 package org.example.controller;
 
-// Import annotation FXML để liên kết UI với code Java
-import javafx.fxml.FXML;
-
-// Import FXMLLoader để load file FXML màn hình khác
 import javafx.fxml.FXMLLoader;
-
-// Import Parent làm node gốc của giao diện mới
-import javafx.scene.Parent;
-
-// Import Scene để tạo màn hình mới
-import javafx.scene.Scene;
-
-// Import Alert để hiện popup
+import org.example.client.AuctionClient;
+import javafx.scene.input.KeyCode;
+import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
-
-// Import các control trong giao diện login
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
-
-// Import Button để lấy Stage hiện tại từ nút bấm
-import javafx.scene.control.Button;
-
-// Import ActionEvent để lấy thông tin sự kiện click
-import javafx.event.ActionEvent;
-
-// Import Stage là cửa sổ hiện tại
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.stage.Stage;
-import org.example.dao.UserDAO;
-import org.example.model.User;
+import java.io.IOException;
 
 public class LoginController {
 
-    // Liên kết với ô nhập username trong file login-view.fxml
+    // Ô nhập tài khoản trong file login-view.fxml.
     @FXML
-    private TextField usernameField;
+    private TextField txtUsername;
 
-    // Liên kết với ô nhập password trong file login-view.fxml
+    // Ô nhập mật khẩu trong file login-view.fxml.
     @FXML
-    private PasswordField passwordField;
+    private PasswordField txtPassword;
 
-    // Liên kết với nút Login để lấy Stage hiện tại
+    // Đối tượng client dùng để gửi request sang server.
+    private AuctionClient auctionClient = new AuctionClient();
+
+    /**
+     * Hàm này chạy khi người dùng bấm nút Đăng nhập.
+     */
     @FXML
-    private Button loginButton;
+    public void handleLogin() {
+        // Lấy dữ liệu người dùng nhập từ giao diện.
+        String username = txtUsername.getText();
+        String password = txtPassword.getText();
 
-    // Hàm này sẽ được gọi khi người dùng bấm nút Login
-    @FXML
-    private void handleLogin(ActionEvent event) {
-        // Lấy dữ liệu từ ô username
-        String username = usernameField.getText();
-
-        // Lấy dữ liệu từ ô password
-        String password = passwordField.getText();
-
-        // Kiểm tra nếu người dùng để trống một trong hai ô
-        if (username.isEmpty() || password.isEmpty()) {
-            showAlert("Lỗi", "Không được để trống!");
+        // Bắt lỗi chưa nhập tài khoản.
+        if (username == null || username.trim().isEmpty()) {
+            showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa nhập tài khoản!");
+            return;
         }
-        UserDAO userDAO = new UserDAO();
-        User user = userDAO.login(username, password);
-        if (user != null){
-            openHomeScreen(event,user);
+
+        // Bắt lỗi chưa nhập mật khẩu.
+        if (password == null || password.trim().isEmpty()) {
+            showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa nhập mật khẩu!");
+            return;
         }
-        // Nếu sai tài khoản hoặc mật khẩu thì hiện popup lỗi
-        else {
-            showAlert("Sai", "Sai tài khoản hoặc mật khẩu!");
+
+        // Gửi tài khoản và mật khẩu sang server để kiểm tra.
+        String response = auctionClient.login(username.trim(), password.trim());
+
+        System.out.println("Server trả về: " + response);
+
+        // Nếu server báo đăng nhập thành công.
+        if (response.startsWith("LOGIN_SUCCESS")) {
+            showAlert(Alert.AlertType.INFORMATION, "Đăng nhập thành công", "Chào mừng " + username);
+            openHomeView();
+
+        } else if (response.startsWith("LOGIN_FAILED")) {
+            // Tách thông báo lỗi từ server.
+            String[] parts = response.split("\\|", 2);
+            String message = parts.length > 1 ? parts[1] : "Đăng nhập thất bại";
+
+            showAlert(Alert.AlertType.ERROR, "Đăng nhập thất bại", message);
+
+        } else if (response.startsWith("ERROR")) {
+            // Lỗi thường gặp: chưa bật server, sai port, mất kết nối.
+            String[] parts = response.split("\\|", 2);
+            String message = parts.length > 1 ? parts[1] : "Lỗi không xác định";
+
+            showAlert(Alert.AlertType.ERROR, "Lỗi kết nối", message);
+
+        } else {
+            // Trường hợp server trả về dữ liệu không đúng format.
+            showAlert(Alert.AlertType.ERROR, "Lỗi", "Server trả về phản hồi không hợp lệ");
         }
     }
 
-    // Hàm dùng để mở màn hình Home
-    private void openHomeScreen(ActionEvent event, User user) {
+    /**
+     * Hàm dùng chung để hiện popup thông báo.
+     */
+    private void showAlert(Alert.AlertType type, String title, String content) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
+    /**
+     * Mở màn hình Home sau khi đăng nhập thành công.
+     */
+    private void openHomeView() {
         try {
-            // Load file home-view.fxml từ resources/views
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/home-view.fxml"));
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/home-view.fxml")
+            );
+
             Parent root = loader.load();
 
-            HomeController homeController = loader.getController();
-            homeController.setUser(user);
-
-            // Tạo scene mới cho màn Home
-            Scene homeScene = new Scene(root, 500, 350);
-
-            // Lấy cửa sổ hiện tại từ nút Login
-            Stage stage = (Stage) loginButton.getScene().getWindow();
-
-            // Đổi scene hiện tại sang màn Home
-            stage.setScene(homeScene);
-
-            // Đặt lại tiêu đề cửa sổ
+            Stage stage = (Stage) txtUsername.getScene().getWindow();
+            stage.setScene(new Scene(root));
             stage.setTitle("Auction System - Home");
-
-            // Hiển thị cửa sổ
             stage.show();
 
-        } catch (Exception e) {
-            // Nếu có lỗi khi load màn hình mới thì in lỗi ra console
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR, "Lỗi", "Không mở được màn hình Home!");
             e.printStackTrace();
-
-            // Đồng thời hiện popup báo lỗi
-            showAlert("Lỗi", "Không mở được màn hình Home.");
         }
     }
+    @FXML
+    public void initialize() {
+        txtUsername.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.DOWN) {
+                txtPassword.requestFocus();
+            }
+        });
 
-    // Hàm dùng chung để hiện popup thông báo
-    private void showAlert(String title, String message) {
-        // Tạo popup kiểu thông báo
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-
-        // Đặt tiêu đề cho popup
-        alert.setTitle(title);
-
-        // Không dùng dòng header
-        alert.setHeaderText(null);
-
-        // Đặt nội dung popup
-        alert.setContentText(message);
-
-        // Hiển thị popup
-        alert.showAndWait();
+        txtPassword.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.UP) {
+                txtUsername.requestFocus();
+            }
+        });
     }
 }
