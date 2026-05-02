@@ -5,12 +5,15 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Label;
 import javafx.application.Platform;
+import org.example.service.NetworkService;
 public class BiddingController {
     //khai bao cac thanh phan co fx:id ben file FXML
     @FXML
     private Label lblGiaHienTai;
     @FXML
     private TextField txtNhapGia;
+    // Dùng để gửi dữ liệu từ màn hình đấu giá lên server
+    private NetworkService networkService = new NetworkService();
     //tam
     private double giaHienTai = 0.0;
 
@@ -28,12 +31,29 @@ public class BiddingController {
             if (giaDat <= giaHienTai){
                 hienThiPopup(Alert.AlertType.ERROR, "Lỗi đặt giá", "Phải đặt giá cao hơn "+giaHienTai+"$");
             } else {
-                // Đặt giá hợp lệ -> Tạm thời cho cập nhật lên màn hình
+                // Tạo message gửi lên server
+                // Tạm thời hard-code username là admin
+                String username = "admin";
+                String message = "BID|" + username + "|" + giaDat;
+
+                // Gửi giá đặt lên server thông qua NetworkService
+                String response = networkService.sendMessage(message);
+
+                System.out.println("Server trả về: " + response);
+
+                // Nếu không kết nối được server thì báo lỗi
+                if (response.startsWith("ERROR")) {
+                    hienThiPopup(Alert.AlertType.ERROR, "Lỗi kết nối", "Không kết nối được tới server!");
+                    return;
+                }
+
+                // Server hiện tại chỉ phản hồi đã nhận,
+                // nên tạm thời cập nhật giá trên giao diện client
                 giaHienTai = giaDat;
-                lblGiaHienTai.setText("Giá hiện tại: "+giaHienTai+"$");
-                txtNhapGia.clear();//xóa trắng ô nhập
-                hienThiPopup(Alert.AlertType.INFORMATION, "Thành công", "Đã gửi yêu cầu đặt giá");
-                //(Sau này chỗ này sẽ gửi mức giá này lên cho sever)
+                lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + "$");
+                txtNhapGia.clear();
+
+                hienThiPopup(Alert.AlertType.INFORMATION, "Server phản hồi", response);
             }
         } catch (NumberFormatException e){
             //lỗi nhập liệu của người dùng(một ngàn thay vì 1000

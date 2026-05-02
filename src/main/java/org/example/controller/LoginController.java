@@ -1,7 +1,6 @@
 package org.example.controller;
 
 import javafx.fxml.FXMLLoader;
-import org.example.client.AuctionClient;
 import javafx.scene.input.KeyCode;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
@@ -11,6 +10,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import java.io.IOException;
+import org.example.service.NetworkService;
 
 public class LoginController {
 
@@ -23,59 +23,54 @@ public class LoginController {
     private PasswordField txtPassword;
 
     // Đối tượng client dùng để gửi request sang server.
-    private AuctionClient auctionClient = new AuctionClient();
+    private NetworkService networkService = new NetworkService();
 
     /**
      * Hàm này chạy khi người dùng bấm nút Đăng nhập.
      */
     @FXML
     public void handleLogin() {
-        // Lấy dữ liệu người dùng nhập từ giao diện.
+        // Lấy dữ liệu người dùng nhập từ giao diện
         String username = txtUsername.getText();
         String password = txtPassword.getText();
 
-        // Bắt lỗi chưa nhập tài khoản.
+        // Bắt lỗi chưa nhập tài khoản
         if (username == null || username.trim().isEmpty()) {
             showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa nhập tài khoản!");
             return;
         }
 
-        // Bắt lỗi chưa nhập mật khẩu.
+        // Bắt lỗi chưa nhập mật khẩu
         if (password == null || password.trim().isEmpty()) {
             showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa nhập mật khẩu!");
             return;
         }
 
-        // Gửi tài khoản và mật khẩu sang server để kiểm tra.
-        String response = auctionClient.login(username.trim(), password.trim());
+        // Tạo message gửi lên server
+        // Server hiện tại nhận text thường nên ta gửi dạng LOGIN|username|password
+        String message = "LOGIN|" + username.trim() + "|" + password.trim();
+
+        // Gửi message sang server thông qua NetworkService
+        String response = networkService.sendMessage(message);
 
         System.out.println("Server trả về: " + response);
 
-        // Nếu server báo đăng nhập thành công.
-        if (response.startsWith("LOGIN_SUCCESS")) {
-            showAlert(Alert.AlertType.INFORMATION, "Đăng nhập thành công", "Chào mừng " + username);
-            openHomeView();
-
-        } else if (response.startsWith("LOGIN_FAILED")) {
-            // Tách thông báo lỗi từ server.
-            String[] parts = response.split("\\|", 2);
-            String message = parts.length > 1 ? parts[1] : "Đăng nhập thất bại";
-
-            showAlert(Alert.AlertType.ERROR, "Đăng nhập thất bại", message);
-
-        } else if (response.startsWith("ERROR")) {
-            // Lỗi thường gặp: chưa bật server, sai port, mất kết nối.
-            String[] parts = response.split("\\|", 2);
-            String message = parts.length > 1 ? parts[1] : "Lỗi không xác định";
-
-            showAlert(Alert.AlertType.ERROR, "Lỗi kết nối", message);
-
-        } else {
-            // Trường hợp server trả về dữ liệu không đúng format.
-            showAlert(Alert.AlertType.ERROR, "Lỗi", "Server trả về phản hồi không hợp lệ");
+        // Nếu không kết nối được server
+        if (response.startsWith("ERROR")) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi kết nối",
+                    "Không kết nối được tới server!");
+            return;
         }
-    }
 
+        // Vì server hiện tại chỉ trả phản hồi chung chung,
+        // tạm thời coi như gửi thành công thì cho vào Home
+        showAlert(Alert.AlertType.INFORMATION,
+                "Server phản hồi",
+                response);
+
+        openHomeView();
+    }
     /**
      * Hàm dùng chung để hiện popup thông báo.
      */
