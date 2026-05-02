@@ -1,5 +1,6 @@
 package org.example.controller;
 
+import org.example.service.AppSession;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.input.KeyCode;
 import javafx.fxml.FXML;
@@ -62,6 +63,7 @@ public class LoginController {
                     "Không kết nối được tới server!");
             return;
         }
+        AppSession.setCurrentUsername(username.trim());
 
         // Vì server hiện tại chỉ trả phản hồi chung chung,
         // tạm thời coi như gửi thành công thì cho vào Home
@@ -116,5 +118,26 @@ public class LoginController {
                 txtUsername.requestFocus();
             }
         });
+    }
+    @FXML
+    private void handleOpenRegister() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/register-view.fxml")
+            );
+
+            Parent root = loader.load();
+
+            Stage stage = (Stage) txtUsername.getScene().getWindow();
+            stage.setScene(new Scene(root));
+            stage.setTitle("Đăng ký tài khoản");
+            stage.show();
+
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không mở được màn hình đăng ký!");
+            e.printStackTrace();
+        }
     }
 }

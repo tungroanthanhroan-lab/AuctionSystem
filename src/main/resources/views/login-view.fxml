@@ -38,4 +38,6 @@
 
     <!-- Nút Login, khi bấm sẽ gọi hàm handleLogin() trong LoginController -->
     <Button fx:id="loginButton" text="Login" onAction="#handleLogin" defaultButton="true"/>
+    <Button text="Chưa có tài khoản? Đăng ký"
+            onAction="#handleOpenRegister" />
 </VBox>

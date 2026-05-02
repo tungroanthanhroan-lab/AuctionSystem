@@ -9,7 +9,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ListView;
 import javafx.stage.Stage;
-
+import javafx.scene.input.MouseButton;
 import java.io.IOException;
 
 public class AuctionListController {
@@ -39,6 +39,13 @@ public class AuctionListController {
         // Khi chọn một phiên và bấm Enter thì mở màn hình đấu giá
         listAuctions.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
+                handleOpenBidding();
+                event.consume();
+            }
+        });
+        // Khi double click chuột trái vào một phiên đấu giá thì mở màn hình đấu giá
+        listAuctions.setOnMouseClicked(event -> {
+            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                 handleOpenBidding();
                 event.consume();
             }

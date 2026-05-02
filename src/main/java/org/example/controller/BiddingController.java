@@ -1,4 +1,6 @@
 package org.example.controller;
+
+import org.example.service.AppSession;
 import org.example.service.AuctionDataStore;
 import javafx.scene.control.Button;
 import javafx.scene.input.KeyCode;
@@ -15,6 +17,7 @@ import javafx.scene.control.Label;
 import javafx.application.Platform;
 import javafx.scene.control.Button;
 import org.example.service.NetworkService;
+
 public class BiddingController {
     //khai bao cac thanh phan co fx:id ben file FXML
     @FXML
@@ -60,25 +63,71 @@ public class BiddingController {
              * auctionInfo có dạng:
              * "2 - Laptop Gaming - Giá hiện tại: 1000.0$"
              *
-             * Ta tách ra để lấy phần tên:
+             * Tách chuỗi để lấy tên phiên:
              * "2 - Laptop Gaming"
              */
             String[] mainParts = auctionInfo.split(" - Giá hiện tại:");
             auctionName = mainParts[0];
 
-            // Hiển thị tên sản phẩm/phiên đấu giá
+            // Hiển thị tên phiên
             lblTenSanPham.setText("Sản phẩm: " + auctionName);
 
-            // Lấy giá hiện tại từ AuctionDataStore thay vì lấy từ chuỗi
+            // Load giá hiện tại từ AuctionDataStore
             giaHienTai = AuctionDataStore.getPrice(auctionName);
             lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
 
+            // Load người dẫn đầu
+            lblNguoiDanDau.setText(
+                    "Người dẫn đầu: " + AuctionDataStore.getHighestBidder(auctionName)
+            );
+
+            // Load lịch sử bid
+            listLichSuBid.getItems().clear();
+            listLichSuBid.getItems().addAll(
+                    AuctionDataStore.getBidHistory(auctionName)
+            );
+
+            // Load trạng thái phiên
+            phienDangMo = AuctionDataStore.isAuctionOpen(auctionName);
+
+            if (phienDangMo) {
+                lblTrangThai.setText("Trạng thái: ĐANG MỞ");
+                lblTrangThai.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
+
+                txtNhapGia.setDisable(false);
+                btnDatGia.setDisable(false);
+                btnDongPhien.setDisable(false);
+
+            } else {
+                lblTrangThai.setText("Trạng thái: ĐÃ KẾT THÚC");
+                lblTrangThai.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+
+                txtNhapGia.setDisable(true);
+                btnDatGia.setDisable(true);
+                btnDongPhien.setDisable(true);
+            }
+
         } catch (Exception e) {
-            // Nếu có lỗi khi tách chuỗi thì vẫn hiển thị được thông tin cơ bản
+            /*
+             * Nếu chuỗi truyền vào lỗi format,
+             * vẫn hiển thị thông tin cơ bản để tránh crash.
+             */
             auctionName = auctionInfo;
             lblTenSanPham.setText("Sản phẩm: " + auctionInfo);
+
             giaHienTai = 0.0;
             lblGiaHienTai.setText("Giá hiện tại: 0 $");
+
+            lblNguoiDanDau.setText("Người dẫn đầu: Chưa có");
+            listLichSuBid.getItems().clear();
+
+            phienDangMo = true;
+            lblTrangThai.setText("Trạng thái: ĐANG MỞ");
+            lblTrangThai.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
+
+            txtNhapGia.setDisable(false);
+            btnDatGia.setDisable(false);
+            btnDongPhien.setDisable(false);
         }
     }
     @FXML
@@ -103,8 +152,8 @@ public class BiddingController {
                 hienThiPopup(Alert.AlertType.ERROR, "Lỗi đặt giá", "Phải đặt giá cao hơn "+giaHienTai+"$");
             } else {
                 // Tạo message gửi lên server
-                // Tạm thời hard-code username là admin
-                String username = "admin";
+
+                String username = AppSession.getCurrentUsername();
                 String message = "BID|" + username + "|" + giaDat;
 
                 // Gửi giá đặt lên server thông qua NetworkService
@@ -120,14 +169,21 @@ public class BiddingController {
 
                 giaHienTai = giaDat;
 
-                // Cập nhật giá mới vào kho dữ liệu tạm
-                // để khi quay lại AuctionList thì list vẫn hiện giá mới
-                AuctionDataStore.updatePrice(auctionName, giaDat);
+                    // Cập nhật dữ liệu tạm:
+                // - giá hiện tại
+                // - người dẫn đầu
+                // - lịch sử đặt giá
+                AuctionDataStore.updateBid(auctionName, giaDat, username);
 
                 lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + "$");
+                lblNguoiDanDau.setText("Người dẫn đầu: " + username);
 
-                lblNguoiDanDau.setText("Người dẫn đầu: admin");
-                listLichSuBid.getItems().add("admin đã đặt " + giaDat + "$");
+                // Load lại toàn bộ lịch sử từ AuctionDataStore
+                // để khi quay lại phiên, lịch sử vẫn còn
+                listLichSuBid.getItems().clear();
+                listLichSuBid.getItems().addAll(
+                        AuctionDataStore.getBidHistory(auctionName)
+                );
 
                 txtNhapGia.clear();
 
@@ -194,7 +250,8 @@ public class BiddingController {
     @FXML
     private void handleDongPhien() {
         phienDangMo = false;
-
+        // Lưu trạng thái đóng để quay lại list rồi vào lại phiên vẫn đóng
+        AuctionDataStore.closeAuction(auctionName);
         lblTrangThai.setText("Trạng thái: ĐÃ KẾT THÚC");
         lblTrangThai.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
 
