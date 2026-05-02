@@ -13,6 +13,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Label;
 import javafx.application.Platform;
+import javafx.scene.control.Button;
 import org.example.service.NetworkService;
 public class BiddingController {
     //khai bao cac thanh phan co fx:id ben file FXML
@@ -38,9 +39,15 @@ public class BiddingController {
     private Button btnQuayLai;
 
     // Tên phiên đấu giá hiện tại đang được mở
-    @FXML
+
     private String auctionName;
 
+    @FXML
+    private Label lblTrangThai;
+
+    @FXML
+    private Button btnDongPhien;
+    private boolean phienDangMo = true;
     // Dùng để gửi dữ liệu từ màn hình đấu giá lên server
     private NetworkService networkService = new NetworkService();
     //tam
@@ -74,8 +81,16 @@ public class BiddingController {
             lblGiaHienTai.setText("Giá hiện tại: 0 $");
         }
     }
+    @FXML
     public void handleDatGia() {
         String inputStr = txtNhapGia.getText();
+        // Nếu phiên đã đóng thì không cho đặt giá nữa
+        if (!phienDangMo) {
+            hienThiPopup(Alert.AlertType.ERROR,
+                    "Phiên đã đóng",
+                    "Phiên đấu giá đã kết thúc, bạn không thể đặt giá nữa!");
+            return;
+        }
         //kiem tra neu ko nhap j or nhap toan dau cach ma van bam nut dat gia
         if (inputStr == null || inputStr.trim().isEmpty()) {
             hienThiPopup(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa đặt giá tiền!");
@@ -177,6 +192,21 @@ public class BiddingController {
         }
     }
     @FXML
+    private void handleDongPhien() {
+        phienDangMo = false;
+
+        lblTrangThai.setText("Trạng thái: ĐÃ KẾT THÚC");
+        lblTrangThai.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+
+        txtNhapGia.setDisable(true);
+        btnDatGia.setDisable(true);
+        btnDongPhien.setDisable(true);
+
+        hienThiPopup(Alert.AlertType.INFORMATION,
+                "Đóng phiên",
+                "Phiên đấu giá đã được đóng.");
+    }
+    @FXML
     public void initialize() {
         // Khi đang ở ô nhập giá:
         // Bấm mũi tên xuống hoặc Enter thì chuyển focus xuống nút ĐẶT GIÁ
@@ -192,7 +222,7 @@ public class BiddingController {
         // Bấm Enter thì đặt giá
         btnDatGia.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.DOWN) {
-                btnQuayLai.requestFocus();
+                btnDongPhien.requestFocus();
                 event.consume();
 
             } else if (event.getCode() == KeyCode.UP) {
@@ -204,13 +234,27 @@ public class BiddingController {
                 event.consume();
             }
         });
+        btnDongPhien.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.DOWN) {
+                btnQuayLai.requestFocus();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.UP) {
+                btnDatGia.requestFocus();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.ENTER) {
+                handleDongPhien();
+                event.consume();
+            }
+        });
 
         // Khi đang ở nút QUAY LẠI:
         // Bấm mũi tên lên thì quay lại nút ĐẶT GIÁ
         // Bấm Enter thì quay lại danh sách đấu giá
         btnQuayLai.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
-                btnDatGia.requestFocus();
+                btnDongPhien.requestFocus();
                 event.consume();
 
             } else if (event.getCode() == KeyCode.ENTER) {

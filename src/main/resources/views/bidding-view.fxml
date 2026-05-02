@@ -39,10 +39,13 @@
     <Button fx:id="btnDatGia"
             onAction="#handleDatGia"
             text="ĐẶT GIÁ NGAY" />
-
+    <Label fx:id="lblTrangThai" text="Trạng thái: ĐANG MỞ" />
     <Label text="Lịch sử đấu giá:" />
 
     <ListView fx:id="listLichSuBid" prefHeight="150" prefWidth="300" />
+    <Button fx:id="btnDongPhien"
+            text="ĐÓNG PHIÊN"
+            onAction="#handleDongPhien" />
     <Button fx:id="btnQuayLai"
             text="QUAY LẠI DANH SÁCH"
             onAction="#handleBackToAuctionList" />

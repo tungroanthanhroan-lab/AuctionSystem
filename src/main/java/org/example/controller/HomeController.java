@@ -25,10 +25,6 @@ public class HomeController {
 
     /**
      * Khi bấm nút "Xem danh sách đấu giá",
-     * chuyển từ màn hình Home sang màn hình Bidding.
-     */
-    /**
-     * Khi bấm nút "Xem danh sách đấu giá",
      * chuyển từ màn hình Home sang màn hình danh sách phiên đấu giá.
      */
     @FXML
