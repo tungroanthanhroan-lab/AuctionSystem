@@ -1,5 +1,5 @@
 package org.example.controller;
-
+import javafx.scene.control.ListView;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.TextField;
@@ -8,6 +8,10 @@ import javafx.application.Platform;
 import org.example.service.NetworkService;
 public class BiddingController {
     //khai bao cac thanh phan co fx:id ben file FXML
+    @FXML
+    private Label lblNguoiDanDau;
+    @FXML
+    private ListView<String> listLichSuBid;
     @FXML
     private Label lblGiaHienTai;
     @FXML
@@ -51,6 +55,9 @@ public class BiddingController {
                 // nên tạm thời cập nhật giá trên giao diện client
                 giaHienTai = giaDat;
                 lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + "$");
+                lblNguoiDanDau.setText("Người dẫn đầu: admin");
+                listLichSuBid.getItems().add("admin đã đặt " + giaDat + "$");
+
                 txtNhapGia.clear();
 
                 hienThiPopup(Alert.AlertType.INFORMATION, "Server phản hồi", response);
