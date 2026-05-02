@@ -18,7 +18,7 @@
         <Insets bottom="30.0" left="30.0" right="30.0" top="30.0" />
     </padding>
 
-    <Label text="Sản phẩm: Thanh xuân của bạn">
+    <Label fx:id="lblTenSanPham" text="Sản phẩm: Chưa chọn">
         <font>
             <Font name="System Bold" size="20.0" />
         </font>
@@ -36,12 +36,14 @@
                promptText="Nhập giá tiền ($)"
                onAction="#handleDatGia" />
 
-    <Button defaultButton="true"
+    <Button fx:id="btnDatGia"
             onAction="#handleDatGia"
             text="ĐẶT GIÁ NGAY" />
 
     <Label text="Lịch sử đấu giá:" />
 
     <ListView fx:id="listLichSuBid" prefHeight="150" prefWidth="300" />
-
+    <Button fx:id="btnQuayLai"
+            text="QUAY LẠI DANH SÁCH"
+            onAction="#handleBackToAuctionList" />
 </VBox>

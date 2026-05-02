@@ -27,11 +27,16 @@ public class HomeController {
      * Khi bấm nút "Xem danh sách đấu giá",
      * chuyển từ màn hình Home sang màn hình Bidding.
      */
+    /**
+     * Khi bấm nút "Xem danh sách đấu giá",
+     * chuyển từ màn hình Home sang màn hình danh sách phiên đấu giá.
+     */
     @FXML
     private void handleViewAuctions() {
         try {
+            // Load màn hình danh sách phiên đấu giá
             FXMLLoader fxmlLoader = new FXMLLoader(
-                    getClass().getResource("/views/bidding-view.fxml")
+                    getClass().getResource("/views/auction-list-view.fxml")
             );
 
             Parent root = fxmlLoader.load();
@@ -39,19 +44,19 @@ public class HomeController {
             // Lấy cửa sổ hiện tại từ welcomeLabel
             Stage stage = (Stage) welcomeLabel.getScene().getWindow();
 
-            // Thay scene hiện tại bằng scene đấu giá
+            // Thay scene hiện tại bằng scene danh sách đấu giá
             stage.setScene(new Scene(root));
-            stage.setTitle("Màn hình Đấu giá Trực tiếp");
+            stage.setTitle("Danh sách phiên đấu giá");
             stage.show();
 
         } catch (IOException e) {
+            // Hiện popup nếu không mở được màn hình danh sách
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
-                    "Không thể tải file bidding-view.fxml");
+                    "Không thể tải file auction-list-view.fxml");
             e.printStackTrace();
         }
     }
-
     /**
      * Hàm hiện popup lỗi.
      */
