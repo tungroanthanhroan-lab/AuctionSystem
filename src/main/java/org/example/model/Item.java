@@ -1,18 +1,18 @@
 package org.example.model;
 
 public class Item {
-    private int id;
+    private String id;
     private String title;
     private String description;
     private double startingPrice;
     private double currentPrice;
     private String endTime;
-    private int sellerId;
+    private String sellerId;
     private String status;
 
     public Item() {}
 
-    public Item(int id, String title, String description, double startingPrice, double currentPrice, String endTime, int sellerId, String status) {
+    public Item(String id, String title, String description, double startingPrice, double currentPrice, String endTime, String sellerId, String status) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -23,8 +23,8 @@ public class Item {
         this.status = status;
     }
 
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getDescription() { return description; }
@@ -35,8 +35,8 @@ public class Item {
     public void setCurrentPrice(double currentPrice) { this.currentPrice = currentPrice; }
     public String getEndTime() { return endTime; }
     public void setEndTime(String endTime) { this.endTime = endTime; }
-    public int getSellerId() { return sellerId; }
-    public void setSellerId(int sellerId) { this.sellerId = sellerId; }
+    public String getSellerId() { return sellerId; }
+    public void setSellerId(String sellerId) { this.sellerId = sellerId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
 
