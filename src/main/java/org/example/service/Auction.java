@@ -1,5 +1,6 @@
 package org.example.service;
 
+import org.example.controller.BidResponse;
 import org.example.model.Item;
 import org.example.model.Bidder;
 import org.example.exception.AuctionClosedException;
@@ -14,7 +15,7 @@ import java.util.concurrent.locks.ReentrantLock;
 // phien dau gia con mo khong
 // gia co cao hon hien tai khong (logic)
 // hop le -> tiep tuc
-public class AuctionService {
+public class Auction {
     private String auctionId;
     private Item item;
     private Bidder currentLeader;
@@ -25,7 +26,7 @@ public class AuctionService {
     private List<BidTransaction> bidHistory;
     private AuctionNotifier notifier;
 
-    public AuctionService(String auctionId, Item item, Bidder currentLeader, AuctionStatus status, double startingPrice, LocalDateTime startTime, LocalDateTime endTime, AuctionNotifier notifier) {
+    public Auction(String auctionId, Item item, Bidder currentLeader, AuctionStatus status, double startingPrice, LocalDateTime startTime, LocalDateTime endTime, AuctionNotifier notifier) {
         this.auctionId = auctionId;
         this.item = item;
         this.currentLeader = currentLeader;
@@ -108,7 +109,7 @@ public class AuctionService {
      * xu li logic dat gia cua nguoi dung
      * guard clause bat loi
      */
-    public void placeBid(Bidder bidder, double bidAmount) {
+    public BidResponse placeBid(Bidder bidder, double bidAmount) {
         lock.lock();
         try {
             //kiem tra trang thai phien dau gia
@@ -132,6 +133,7 @@ public class AuctionService {
 
             BidTransaction transaction = new BidTransaction(bidder, bidAmount, LocalDateTime.now());
             bidHistory.add(transaction);
+            return new BidResponse(true, "Dat gia thanh cong", currentHighestBid);
         } finally {
             lock.unlock();
         }

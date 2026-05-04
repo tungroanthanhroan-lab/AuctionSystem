@@ -1,47 +1,28 @@
 package org.example.model;
 
-public class Item {
-    private String id;
-    private String title;
+public class Item extends Entity {
+    private String name;
     private String description;
-    private double startingPrice;
-    private double currentPrice;
-    private String endTime;
-    private int sellerId;
-    private String status;
 
-    public Item() {}
-
-    public Item(String id, String title, String description, double startingPrice, double currentPrice, String endTime, int sellerId, String status) {
-        this.id = id;
-        this.title = title;
+    public Item(int id, String name, String description) {
+        super(id);
+        this.name = name;
         this.description = description;
-        this.startingPrice = startingPrice;
-        this.currentPrice = currentPrice;
-        this.endTime = endTime;
-        this.sellerId = sellerId;
-        this.status = status;
     }
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-    public double getStartingPrice() { return startingPrice; }
-    public void setStartingPrice(double startingPrice) { this.startingPrice = startingPrice; }
-    public double getCurrentPrice() { return currentPrice; }
-    public void setCurrentPrice(double currentPrice) { this.currentPrice = currentPrice; }
-    public String getEndTime() { return endTime; }
-    public void setEndTime(String endTime) { this.endTime = endTime; }
-    public int getSellerId() { return sellerId; }
-    public void setSellerId(int sellerId) { this.sellerId = sellerId; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public String getName() {
+        return name;
+    }
 
-    @Override
-    public String toString() {
-        return "Item{" + "id=" + id + ", title='" + title + '\'' + ", currentPrice=" + currentPrice + ", status='" + status + '\'' + '}';
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }

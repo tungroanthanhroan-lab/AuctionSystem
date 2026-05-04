@@ -1,7 +1,7 @@
 package org.example.service;
 
-import clone.main.java.com.auction.common.model.Auction;
-import clone.main.java.com.auction.common.model.Bidder;
+
+import org.example.model.Bidder;
 
 import java.io.Serializable;
 

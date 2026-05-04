@@ -6,7 +6,7 @@ import org.example.exception.AuctionClosedException;
 import org.example.model.Bidder;
 import org.example.model.Item;
 import org.example.service.AuctionNotifier;
-import org.example.service.AuctionService;
+import org.example.service.Auction;
 import org.example.service.AuctionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 
 public class AuctionTest {
 
-    private AuctionService auction;
+    private Auction auction;
     private Bidder alice;
     private Bidder bob;
     private AuctionNotifier dummyNotifier; // Dùng một notifier giả để test logic
@@ -26,13 +26,13 @@ public class AuctionTest {
     // Hàm @BeforeEach chạy trước MỖI hàm @Test để reset lại dữ liệu mới tinh
     @BeforeEach
     public void setUp() {
-        alice = new Bidder("B01", "Alice", null, 5000);
-        bob = new Bidder("B02", "Bob", null, 6000);
+        alice = new Bidder(01, "Alice", null, "Bidder", 500);
+        bob = new Bidder(02, "Bob", null, "Bidder", 600);
         dummyNotifier = new AuctionNotifier();
 
-        Item item = new Item("Iphone 15");
+        Item item = new Item(1, "Iphone 15", null);
         // Giả sử tạo phiên đấu giá giá khởi điểm 100$, thời gian kết thúc là 1 giờ sau
-        auction = new AuctionService("A001", item, 100.0, LocalDateTime.now(), LocalDateTime.now().plusHours(1), dummyNotifier);
+        auction = new Auction("A001", item, null, null, 100, LocalDateTime.now(), LocalDateTime.now().plusHours(1), dummyNotifier);
 
         // Gán trạng thái là RUNNING để test
         auction.setStatus(AuctionStatus.RUNNING);
