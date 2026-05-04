@@ -2,6 +2,7 @@ package org.example.controller;
 
 import org.example.exception.AuctionClosedException;
 import org.example.exception.InvalidBidException;
+import org.example.model.Bidder;
 import org.example.service.AuctionService;
 
 public class AuctionServerController {

@@ -1,29 +1,29 @@
 package org.example.service;
 
-import clone.main.java.com.auction.common.model.Auction;
-import clone.main.java.com.auction.common.model.Bidder;
+import org.example.model.Bidder; // Import đúng đường dẫn trong project của bạn
 
 import java.io.Serializable;
 
 public class BidUpdateEvent implements Serializable {
-    private Auction auction;
+    // Đổi thuộc tính Auction thành String auctionId để dễ dàng truyền qua Socket
+    private String auctionId;
     private double newHighestAmount;
     private Bidder bidder;
     private String timestamp;
 
-    public BidUpdateEvent(Auction auction, double newHighestAmount, Bidder bidder, String timestamp) {
-        this.auction = auction;
+    public BidUpdateEvent(String auctionId, double newHighestAmount, Bidder bidder, String timestamp) {
+        this.auctionId = auctionId;
         this.newHighestAmount = newHighestAmount;
         this.bidder = bidder;
         this.timestamp = timestamp;
     }
 
     public String getAuctionId() {
-        return auction.getAuctionId();
+        return auctionId;
     }
 
-    public void setAuction(Auction auction) {
-        this.auction = auction;
+    public void setAuctionId(String auctionId) {
+        this.auctionId = auctionId;
     }
 
     public double getNewHighestAmount() {

@@ -67,7 +67,7 @@ public class ItemDAO {
 
             while (rs.next()) {
                 Item item = new Item(
-                        rs.getInt("id"),
+                        rs.getString("id"),
                         rs.getString("title"),
                         rs.getString("description"),
                         rs.getDouble("starting_price"),
