@@ -33,10 +33,12 @@
     <ComboBox fx:id="cbRole"
               promptText="Chọn vai trò"/>
 
-    <Button text="Đăng ký"
+    <Button fx:id="btnRegister"
+            text="Đăng ký"
             onAction="#handleRegister"/>
 
-    <Button text="Quay lại đăng nhập"
+    <Button fx:id="btnBackToLogin"
+            text="Quay lại đăng nhập"
             onAction="#handleBackToLogin"/>
 
 </VBox>

@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import javafx.scene.control.Button;
+import javafx.scene.input.KeyCode;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -30,10 +32,109 @@ public class RegisterController {
     private NetworkService networkService = new NetworkService();
 
     @FXML
-    public void initialize() {
-        cbRole.getItems().addAll("BIDDER", "SELLER");
-    }
+    private Button btnRegister;
 
+    @FXML
+    private Button btnBackToLogin;
+
+    @FXML
+    public void initialize() {
+        // Thêm các vai trò cho ComboBox
+        cbRole.getItems().addAll("BIDDER", "SELLER");
+
+        // Username: xuống hoặc Enter thì sang ô mật khẩu
+        txtUsername.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
+                txtPassword.requestFocus();
+                event.consume();
+            }
+        });
+
+        // Password: lên thì về username, xuống hoặc Enter thì sang confirm password
+        txtPassword.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.UP) {
+                txtUsername.requestFocus();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
+                txtConfirmPassword.requestFocus();
+                event.consume();
+            }
+        });
+
+        // Confirm password: lên thì về password, xuống hoặc Enter thì sang chọn role
+        txtConfirmPassword.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.UP) {
+                txtPassword.requestFocus();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
+                cbRole.requestFocus();
+                event.consume();
+            }
+        });
+        // Click chuột vào ComboBox thì xổ danh sách lựa chọn
+        cbRole.setOnMouseClicked(event -> {
+            cbRole.show();
+        });
+
+        // Role:
+// - Enter: xổ danh sách lựa chọn BIDDER / SELLER
+// - Nếu đã chọn role rồi:
+//   + Mũi tên xuống chuyển sang nút Đăng ký
+//   + Mũi tên lên quay lại ô Nhập lại mật khẩu
+// - Không để mũi tên xuống tự đổi BIDDER thành SELLER
+        cbRole.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                cbRole.show();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.DOWN) {
+                if (cbRole.getValue() == null) {
+                    cbRole.show();
+                } else {
+                    btnRegister.requestFocus();
+                }
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.UP) {
+                if (cbRole.getValue() == null) {
+                    cbRole.show();
+                } else {
+                    txtConfirmPassword.requestFocus();
+                }
+                event.consume();
+            }
+        });
+
+        // Nút Đăng ký: lên thì về role, xuống thì sang nút quay lại, Enter thì đăng ký
+        btnRegister.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.UP) {
+                cbRole.requestFocus();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.DOWN) {
+                btnBackToLogin.requestFocus();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.ENTER) {
+                handleRegister();
+                event.consume();
+            }
+        });
+
+        // Nút Quay lại: lên thì về nút Đăng ký, Enter thì quay lại Login
+        btnBackToLogin.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.UP) {
+                btnRegister.requestFocus();
+                event.consume();
+
+            } else if (event.getCode() == KeyCode.ENTER) {
+                handleBackToLogin();
+                event.consume();
+            }
+        });
+    }
     @FXML
     private void handleRegister() {
         String username = txtUsername.getText();
