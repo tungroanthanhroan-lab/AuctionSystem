@@ -22,8 +22,7 @@ public class AuctionNotifier {
     public void broadcast(BidUpdateEvent event) {
         for (AuctionObserve observe : observes) {
             //day ra mot luong rieng de tranh 1 client mang cham lam cham ca danh sach
-            Thread thread = new Thread(() -> observe.onBidUpdate(event).start());
+            new Thread(() -> observe.onBidUpdate(event)).start();
         }
     }
-
 }
