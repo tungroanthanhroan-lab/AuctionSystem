@@ -1,7 +1,7 @@
 package org.example.model;
 
 public class Item {
-    private String id;
+    private int id;
     private String title;
     private String description;
     private double startingPrice;
