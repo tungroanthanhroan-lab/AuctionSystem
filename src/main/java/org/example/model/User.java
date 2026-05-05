@@ -1,7 +1,7 @@
 package org.example.model;
 
 public class User {
-    private String id;
+    private int id;
     private String username;
     private String password;
     private String role; // "ADMIN" hoặc "USER"
