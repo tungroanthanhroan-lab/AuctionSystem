@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox alignment="CENTER"
+      spacing="12"
+      xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.example.controller.RegisterController">
+
+    <padding>
+        <Insets top="25" right="25" bottom="25" left="25"/>
+    </padding>
+
+    <Label text="Đăng ký tài khoản"
+           style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
+
+    <TextField fx:id="txtUsername"
+               promptText="Tên tài khoản"/>
+
+    <PasswordField fx:id="txtPassword"
+                   promptText="Mật khẩu"/>
+
+    <PasswordField fx:id="txtConfirmPassword"
+                   promptText="Nhập lại mật khẩu"/>
+
+    <ComboBox fx:id="cbRole"
+              promptText="Chọn vai trò"/>
+
+    <Button fx:id="btnRegister"
+            text="Đăng ký"
+            onAction="#handleRegister"/>
+
+    <Button fx:id="btnBackToLogin"
+            text="Quay lại đăng nhập"
+            onAction="#handleBackToLogin"/>
+
+</VBox>
