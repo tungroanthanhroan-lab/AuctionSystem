@@ -12,7 +12,7 @@ public class Item {
 
     public Item() {}
 
-    public Item(String id, String title, String description, double startingPrice, double currentPrice, String endTime, int sellerId, String status) {
+    public Item(int id, String title, String description, double startingPrice, double currentPrice, String endTime, int sellerId, String status) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -23,8 +23,8 @@ public class Item {
         this.status = status;
     }
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getDescription() { return description; }

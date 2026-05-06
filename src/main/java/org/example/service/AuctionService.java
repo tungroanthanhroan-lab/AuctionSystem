@@ -180,7 +180,7 @@ public class AuctionService {
     public void cancelAutoBid(Bidder bidder) {
         lock.lock();
         try {
-            autoBidConfigs.removeIf(c -> c.getBidder().getId().equals(bidder.getId()));
+            autoBidConfigs.removeIf(c -> c.getBidder().getId() == (bidder.getId()));
             System.out.println("[AUTO-BID] Da huy auto-bid cua: " + bidder.getUsername());
         } finally {
             lock.unlock();
@@ -221,7 +221,7 @@ public class AuctionService {
                 AutoBidConfig winner = null;
                 for (AutoBidConfig cfg : autoBidConfigs) {
                     // Bỏ qua người đang dẫn đầu (họ đã thắng rồi)
-                    if (cfg.getBidder().getId().equals(currentLeader.getId())) continue;
+                    if (cfg.getBidder().getId() == (currentLeader.getId())) continue;
 
                     double nextBid = currentHighestBid + cfg.getIncrement();
 

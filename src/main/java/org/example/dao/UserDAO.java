@@ -60,7 +60,7 @@ public class UserDAO {
             if (rs.next()) {
                 // Nếu tìm thấy user, đóng gói vào đối tượng User
                 return new User(
-                        rs.getString("id"),
+                        rs.getInt("id"),
                         rs.getString("username"),
                         rs.getString("password"),
                         rs.getString("role")
