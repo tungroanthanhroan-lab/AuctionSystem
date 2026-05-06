@@ -210,15 +210,31 @@ public class RegisterController {
         String response = networkService.sendMessage(message);
 
         if (response.startsWith("ERROR")) {
-            showAlert(Alert.AlertType.ERROR, "Lỗi kết nối", "Không kết nối được tới server!");
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi kết nối",
+                    "Không kết nối được tới server!");
             return;
         }
 
-        showAlert(Alert.AlertType.INFORMATION,
-                "Server phản hồi",
-                response);
+        if (response.startsWith("SUCCESS")) {
+            showAlert(Alert.AlertType.INFORMATION,
+                    "Đăng ký thành công",
+                    response.split("\\|", 2)[1]);
 
-        handleBackToLogin();
+            handleBackToLogin();
+            return;
+        }
+
+        if (response.startsWith("FAIL")) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Đăng ký thất bại",
+                    response.split("\\|", 2)[1]);
+            return;
+        }
+
+        showAlert(Alert.AlertType.WARNING,
+                "Phản hồi không xác định",
+                response);
     }
 
     @FXML

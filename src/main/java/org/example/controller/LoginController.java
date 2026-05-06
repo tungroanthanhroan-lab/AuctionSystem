@@ -58,6 +58,7 @@ public class LoginController {
         txtPassword.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
                 txtUsername.requestFocus();
+                event.consume();
             }
         });
     }
@@ -106,29 +107,44 @@ public class LoginController {
 
         System.out.println("Server trả về: " + response);
 
-        // Nếu không kết nối được server thì báo lỗi và không cho vào home
+        // Nếu không kết nối được server thì báo lỗi và không cho vào Home
         if (response.startsWith("ERROR")) {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi kết nối",
                     "Không kết nối được tới server!");
             return;
         }
-        /*
-         * Lưu username đang đăng nhập.
-         * Các màn sau như BiddingController sẽ dùng username này
-         * để hiển thị người đặt giá.
-         */
-        AppSession.setCurrentUsername(username.trim());
 
-        /*
-         * Vì server hiện tại chỉ trả phản hồi dạng demo,
-         * nên nếu không lỗi kết nối thì tạm coi như đăng nhập thành công.
-         */
-        showAlert(Alert.AlertType.INFORMATION,
-                "Server phản hồi",
+// Nếu server trả SUCCESS nghĩa là đăng nhập đúng tài khoản/mật khẩu trong database
+        if (response.startsWith("SUCCESS")) {
+            /*
+             * Lưu username đang đăng nhập.
+             * Các màn sau như BiddingController sẽ dùng username này
+             * để hiển thị người đặt giá.
+             */
+            AppSession.setCurrentUsername(username.trim());
+
+            showAlert(Alert.AlertType.INFORMATION,
+                    "Đăng nhập thành công",
+                    layNoiDungPhanHoi(response));
+
+            System.out.println("Dang mo man hinh Home...");
+            openHomeView();
+            return;
+        }
+
+// Nếu server trả FAIL nghĩa là sai tài khoản/mật khẩu hoặc sai cú pháp
+        if (response.startsWith("FAIL")) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Đăng nhập thất bại",
+                    layNoiDungPhanHoi(response));
+            return;
+        }
+
+// Trường hợp server trả về nội dung không nằm trong format dự kiến
+        showAlert(Alert.AlertType.WARNING,
+                "Phản hồi không xác định",
                 response);
-
-        openHomeView();
     }
     //======================
     //5.Mở màn hình đăng kí
@@ -184,6 +200,21 @@ public class LoginController {
             e.printStackTrace();
         }
     }
+        /*
+         * Tách nội dung sau dấu | trong phản hồi từ server.
+         * Ví dụ:
+         * SUCCESS|Đăng nhập thành công
+         * -> Đăng nhập thành công
+         */
+        private String layNoiDungPhanHoi(String response) {
+            String[] parts = response.split("\\|", 2);
+
+            if (parts.length == 2) {
+                return parts[1];
+            }
+
+            return response;
+        }
     //======================
     //7.Hàm dùng chung
     //======================

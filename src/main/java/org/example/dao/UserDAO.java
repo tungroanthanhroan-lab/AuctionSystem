@@ -6,6 +6,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import org.example.model.User;
 import java.sql.ResultSet;
+import org.example.model.Admin;
+import org.example.model.Bidder;
+import org.example.model.Seller;
 
 public class UserDAO {
     // Tạo bảng nếu chưa tồn tại bảng nào
@@ -59,12 +62,24 @@ public class UserDAO {
 
             if (rs.next()) {
                 // Nếu tìm thấy user, đóng gói vào đối tượng User
-                return new User(
-                        rs.getInt("id"),
-                        rs.getString("username"),
-                        rs.getString("password"),
-                        rs.getString("role")
-                );
+                int id = rs.getInt("id");
+                String dbUsername = rs.getString("username");
+                String dbPassword = rs.getString("password");
+                String role = rs.getString("role");
+
+                if ("BIDDER".equalsIgnoreCase(role)) {
+                    return new Bidder(id, dbUsername, dbPassword, role, 0.0);
+                }
+
+                if ("SELLER".equalsIgnoreCase(role)) {
+                    return new Seller(id, dbUsername, dbPassword, role, 0.0f);
+                }
+
+                if ("ADMIN".equalsIgnoreCase(role)) {
+                    return new Admin(id, dbUsername, dbPassword, role, 1);
+                }
+
+                return null;
             }
         } catch (SQLException e) {
             e.printStackTrace();
