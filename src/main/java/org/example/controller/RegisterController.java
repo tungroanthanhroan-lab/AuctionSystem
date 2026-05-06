@@ -1,42 +1,71 @@
 package org.example.controller;
 
-import javafx.scene.control.Button;
-import javafx.scene.input.KeyCode;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
 import org.example.service.NetworkService;
 
 import java.io.IOException;
 
 public class RegisterController {
+    // =========================
+    // 1. Các thành phần giao diện
+    // =========================
 
+    // Ô nhập tên tài khoản
     @FXML
     private TextField txtUsername;
 
+    // ô nhập mật khẩu
     @FXML
     private PasswordField txtPassword;
 
+    //ô nhập lại mật khẩu
     @FXML
     private PasswordField txtConfirmPassword;
 
+    // ComboBox chọn vai trò: BIDDER hoặc SELLER
     @FXML
     private ComboBox<String> cbRole;
 
-    private NetworkService networkService = new NetworkService();
-
+    // Nút đăng ký
     @FXML
     private Button btnRegister;
 
+    // Nút quay lại màn hình đăng nhập
     @FXML
     private Button btnBackToLogin;
 
+    // =========================
+    // 2. Service hỗ trợ
+    // =========================
+
+    /*
+     * NetworkService dùng để gửi request đăng ký lên server.
+     * Message gửi đi có dạng:
+     * REGISTER|username|password|role
+     */
+    private final NetworkService networkService = new NetworkService();
+
+    // =========================
+    // 3. Khởi tạo màn hình
+    // =========================
+
+    /*
+     * initialize() tự động chạy sau khi register-view.fxml được load.
+     * Ở đây ta:
+     * - Thêm BIDDER / SELLER vào ComboBox
+     * - Cài đặt điều hướng bằng phím mũi tên và Enter
+     */
     @FXML
     public void initialize() {
         // Thêm các vai trò cho ComboBox
@@ -135,6 +164,21 @@ public class RegisterController {
             }
         });
     }
+
+    // =========================
+    // 4. Xử lý đăng ký
+    // =========================
+
+    /*
+     * Hàm này chạy khi người dùng bấm nút Đăng ký.
+     *
+     * Luồng xử lý:
+     * 1. Lấy dữ liệu từ giao diện.
+     * 2. Kiểm tra dữ liệu hợp lệ.
+     * 3. Gửi REGISTER lên server qua NetworkService.
+     * 4. Nếu server phản hồi thành công thì quay lại màn Login.
+     */
+
     @FXML
     private void handleRegister() {
         String username = txtUsername.getText();
