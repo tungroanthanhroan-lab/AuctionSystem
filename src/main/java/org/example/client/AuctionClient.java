@@ -12,23 +12,37 @@ public class AuctionClient {
 
         // Tìm đến máy có địa chỉ "localhost" với port là 8080
         try (Socket socket = new Socket("localhost", 8080)) {
-            System.out.println("Đã kết nối thành công với Server!");
-
-            // Hai đối tượng để tạo yêu cầu và nhận thông tin từ server
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // Gửi tin cho Server
-            String myMessage = "Cho tôi đăng nhập với user: admin, pass: 123456";
-            out.println(myMessage);
-            System.out.println("Tôi đã gửi: " + myMessage);
+            // Gửi mật lệnh Đăng Ký
+            String command1 = "REGISTER|nguoichoi1|654321|USER";
 
-            // Server phản hồi
-            String serverReply = in.readLine();
-            System.out.println("Server trả lời: " + serverReply);
+            out.println(command1);
+            System.out.println("Tôi đã gửi lệnh: " + command1);
 
-        } catch (IOException e) {
-            System.err.println("Không tìm thấy Server! Chắc chưa bật Server.");
+            // Server trả lời
+            System.out.println("Kết quả từ Server:");
+            String responseLine1;
+            while ((responseLine1 = in.readLine()) != null) {
+                System.out.println(responseLine1);
+            }
+
+            // Gửi chuỗi Đăng Nhập
+            String command = "LOGIN|nguoichoi1|654321";
+
+            out.println(command);
+            System.out.println("Tôi đã gửi lệnh: " + command);
+
+            // Server trả lời
+            System.out.println("Kết quả từ Server:");
+            String responseLine;
+            while ((responseLine = in.readLine()) != null) {
+                System.out.println(responseLine);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
