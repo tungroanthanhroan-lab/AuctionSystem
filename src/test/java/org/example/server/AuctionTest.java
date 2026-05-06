@@ -5,9 +5,9 @@ import org.example.exception.InvalidBidException;
 import org.example.exception.AuctionClosedException;
 import org.example.model.Bidder;
 import org.example.model.Item;
-import org.example.service.AuctionNotifier;
-import org.example.service.Auction;
-import org.example.service.AuctionStatus;
+import org.example.observer.AuctionNotifier;
+import org.example.model.Auction;
+import org.example.model.AuctionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

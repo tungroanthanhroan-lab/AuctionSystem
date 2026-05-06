@@ -1,6 +1,7 @@
-package org.example.service;
+package org.example.observer;
 
 
+import org.example.model.Auction;
 import org.example.model.Bidder;
 
 import java.io.Serializable;
@@ -34,8 +35,8 @@ public class BidUpdateEvent implements Serializable {
         this.newHighestAmount = newHighestAmount;
     }
 
-    public Bidder getBidder() {
-        return bidder;
+    public String getBidder() {
+        return bidder.getUsername();
     }
 
     public void setBidder(Bidder bidder) {
