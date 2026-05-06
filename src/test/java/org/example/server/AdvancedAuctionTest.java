@@ -27,20 +27,21 @@ public class AdvancedAuctionTest {
 
     @BeforeEach
     public void setUp() {
-        alice   = new Bidder("B01", "Alice",   "pass", 5000.0);
-        bob     = new Bidder("B02", "Bob",     "pass", 6000.0);
-        charlie = new Bidder("B03", "Charlie", "pass", 7000.0);
+        alice   = new Bidder(1, "Alice",   "pass", 5000.0);
+        bob     = new Bidder(2, "Bob",     "pass", 6000.0);
+        charlie = new Bidder(3, "Charlie", "pass", 7000.0);
         dummyNotifier = new AuctionNotifier();
 
-        Item item = new Item("I1", "Iphone 15", "Brand new", 100.0, 100.0,
+        // Đã sửa String id ("I1") thành int id (1)
+        Item item = new Item(1, "Iphone 15", "Brand new", 100.0, 100.0,
                 "2026-12-31", 1, "OPEN");
 
-        // Phiên thông thường (còn nhiều thời gian)
+        // Phiên thông thường)
         auction = new AuctionService("A001", item, null, AuctionStatus.OPEN, 100.0,
                 LocalDateTime.now(), LocalDateTime.now().plusHours(1), dummyNotifier);
         auction.setStatus(AuctionStatus.RUNNING);
 
-        // Phiên sắp hết giờ (còn 30 giây, nằm trong cửa sổ anti-snipe 60 giây)
+        // Phiên sắp hết giờ: Đã sửa String id ("A002") thành int id (2)
         auctionNearEnd = new AuctionService("A002", item, null, AuctionStatus.OPEN, 100.0,
                 LocalDateTime.now().minusHours(1), LocalDateTime.now().plusSeconds(30), dummyNotifier);
         auctionNearEnd.setStatus(AuctionStatus.RUNNING);
@@ -97,14 +98,14 @@ public class AdvancedAuctionTest {
      * Khi 2 người cùng có auto-bid và cùng maxBid, người đăng ký SỚM HƠN thắng cuối cùng.
      *
      * Logic thực tế:
-     *   Alice bid 150 → Bob (đăng ký trước) auto-bid 170 → Charlie counter 190
-     *   → Bob 210 → Charlie 230 → ... → Bob và Charlie leo thang đến gần maxBid.
-     *   Khi đến đỉnh (cả hai không còn increment nào khớp), người dẫn đầu cuối cùng
-     *   là người được ưu tiên (Bob) vì Bob được xét trước trong mỗi vòng.
+     * Alice bid 150 → Bob (đăng ký trước) auto-bid 170 → Charlie counter 190
+     * → Bob 210 → Charlie 230 → ... → Bob và Charlie leo thang đến gần maxBid.
+     * Khi đến đỉnh (cả hai không còn increment nào khớp), người dẫn đầu cuối cùng
+     * là người được ưu tiên (Bob) vì Bob được xét trước trong mỗi vòng.
      *
-     *   Với maxBid=500, increment=20, giá bắt đầu 150:
-     *   Dãy: 170(Bob) 190(C) 210(B) 230(C) ... 490(B) 510(C - vượt maxBid → dừng)
-     *   → Bob dừng ở 490, Charlie không thể vượt vì 490+20=510 > 500 → Bob thắng.
+     * Với maxBid=500, increment=20, giá bắt đầu 150:
+     * Dãy: 170(Bob) 190(C) 210(B) 230(C) ... 490(B) 510(C - vượt maxBid → dừng)
+     * → Bob dừng ở 490, Charlie không thể vượt vì 490+20=510 > 500 → Bob thắng.
      */
     @Test
     public void testAutoBid_PriorityByRegistrationTime() throws InterruptedException {
@@ -217,4 +218,4 @@ public class AdvancedAuctionTest {
         assertEquals(originalEndTime, auction.getEndTime(),
                 "endTime khong duoc thay doi khi bid con cach xa thoi diem ket thuc");
     }
-}   
+}

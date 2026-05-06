@@ -24,12 +24,12 @@ public class AuctionTest {
     @BeforeEach
     public void setUp() {
         // Khởi tạo người dùng đúng cấu trúc: id, username, password, budget (hoặc tham số tương ứng)
-        alice = new Bidder("B01", "Alice", "pass", 5000.0);
-        bob = new Bidder("B02", "Bob", "pass", 6000.0);
+        alice = new Bidder(1, "Alice", "pass", 5000.0);
+        bob = new Bidder(2, "Bob", "pass", 6000.0);
         dummyNotifier = new AuctionNotifier();
 
         // 1. Sửa lỗi khởi tạo Item: Truyền đầy đủ các tham số (id, tên, mô tả, giá khởi điểm,...)
-        Item item = new Item("I1", "Iphone 15", "Brand new", 100.0, 100.0, "2026-12-31", 1, "OPEN");
+        Item item = new Item(1, "Iphone 15", "Brand new", 100.0, 100.0, "2026-12-31", 1, "OPEN");
 
         // 2. Sửa lỗi khởi tạo AuctionService: Truyền đúng tham số theo cấu trúc class của bạn
         // Cấu trúc dự kiến: id, item, leader, status, price, startTime, endTime, notifier
