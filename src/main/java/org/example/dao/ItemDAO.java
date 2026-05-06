@@ -36,18 +36,13 @@ public class ItemDAO {
     }
 
     // Hàm đăng bán món hàng mới
-    public boolean createItem(String title, String description, double startingPrice, String endTime, int sellerId) {
-        String sql = "INSERT INTO items(title, description, starting_price, current_price, end_time, seller_id, status) VALUES(?,?,?,?,?,?,?)";
+    public boolean createItem(String title, String description) {
+        String sql = "INSERT INTO items(title, description) VALUES(?,?)";
         Connection conn = DatabaseConnection.getConnection();
 
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, title);
             pstmt.setString(2, description);
-            pstmt.setDouble(3, startingPrice);
-            pstmt.setDouble(4, startingPrice);
-            pstmt.setString(5, endTime);
-            pstmt.setInt(6, sellerId);
-            pstmt.setString(7, "OPEN");
             pstmt.executeUpdate();
             return true;
         } catch (SQLException e) {
@@ -69,12 +64,7 @@ public class ItemDAO {
                 Item item = new Item(
                         rs.getInt("id"),
                         rs.getString("title"),
-                        rs.getString("description"),
-                        rs.getDouble("starting_price"),
-                        rs.getDouble("current_price"),
-                        rs.getString("end_time"),
-                        rs.getInt("seller_id"),
-                        rs.getString("status")
+                        rs.getString("description")
                 );
                 itemList.add(item);
             }
