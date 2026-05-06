@@ -1,21 +1,22 @@
 package org.example.model;
 
 public class Item extends Entity {
-    private String name;
+    private String title;
     private String description;
+    private Bidder bidder;
 
-    public Item(int id, String name, String description) {
+    public Item(int id, String title, String description) {
         super(id);
-        this.name = name;
+        this.title = title;
         this.description = description;
     }
 
-    public String getName() {
-        return name;
+    public String getTitle() {
+        return title;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setTitle(String name) {
+        this.title = title;
     }
 
     public String getDescription() {

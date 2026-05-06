@@ -3,11 +3,15 @@ package org.example.service;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class AuctionNotifier {
+public class AuctionNotifier implements AuctionObserve{
     //danh sach cac luong ket noi cua client dang xem phien dau gia
     //CopyOnWriteList dam bao khong bi loi ConcurretModificationException
     private final List<AuctionObserve> observes = new CopyOnWriteArrayList<>();
 
+    @Override
+    public void onBidUpdate(BidUpdateEvent event) {
+        System.out.println("Da cap nhat gia moi");
+    }
     //fronend qua luong socket xin nhan thong bao
     public void addObserve(AuctionObserve observe) {
         observes.add(observe);
