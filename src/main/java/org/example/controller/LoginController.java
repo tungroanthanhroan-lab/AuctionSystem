@@ -128,8 +128,14 @@ public class LoginController {
                     "Đăng nhập thành công",
                     layNoiDungPhanHoi(response));
 
-            System.out.println("Dang mo man hinh Home...");
-            openHomeView();
+            if (response.toUpperCase().contains("SELLER")) {
+                System.out.println("Dang mo man hinh Seller Home...");
+                openSellerHomeView();
+            } else {
+                System.out.println("Dang mo man hinh Home...");
+                openHomeView();
+            }
+
             return;
         }
 
@@ -216,7 +222,34 @@ public class LoginController {
             return response;
         }
     //======================
-    //7.Hàm dùng chung
+    //7.mở màn seller home
+    //======================
+    /*
+     * Mở màn hình riêng cho Seller sau khi đăng nhập thành công.
+     */
+    private void openSellerHomeView() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/seller-home-view.fxml")
+            );
+
+            Parent root = loader.load();
+
+            Stage stage = (Stage) txtUsername.getScene().getWindow();
+            stage.setScene(new Scene(root));
+            stage.setTitle("Trang người bán");
+            stage.show();
+
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không mở được màn hình người bán!");
+            e.printStackTrace();
+        }
+    }
+
+    //======================
+    //8.Hàm dùng chung
     //======================
 
     /*

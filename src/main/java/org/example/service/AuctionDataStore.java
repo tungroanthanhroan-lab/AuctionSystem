@@ -50,6 +50,13 @@ public class AuctionDataStore {
         bidHistories.put(auctionName, new ArrayList<>());
         auctionOpenStatus.put(auctionName, true);
     }
+    /*
+     * Hàm public để Seller tạo phiên đấu giá mới từ giao diện.
+     * CreateAuctionController sẽ gọi hàm này.
+     */
+    public static void addNewAuction(String auctionName, double startPrice) {
+        addAuction(auctionName, startPrice);
+    }
 
     /*
      * Trả về danh sách phiên và giá hiện tại.

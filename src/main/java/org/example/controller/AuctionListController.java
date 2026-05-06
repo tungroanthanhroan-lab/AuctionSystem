@@ -95,6 +95,28 @@ public class AuctionListController {
             e.printStackTrace();
         }
     }
+    //hàm để quay lại màn hình chính
+    @FXML
+    private void handleBackToHome() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/home-view.fxml")
+            );
+
+            Parent root = loader.load();
+
+            Stage stage = (Stage) listAuctions.getScene().getWindow();
+            stage.setScene(new Scene(root));
+            stage.setTitle("Auction System - Home");
+            stage.show();
+
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không quay lại được màn hình chính!");
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Hàm dùng chung để hiện popup thông báo.

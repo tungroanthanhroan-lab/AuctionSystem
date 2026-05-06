@@ -44,5 +44,7 @@
     -->
     <Button text="VÀO ĐẤU GIÁ"
             onAction="#handleOpenBidding"/>
+    <Button text="QUAY LẠI TRANG CHÍNH"
+            onAction="#handleBackToHome"/>
 
 </VBox>

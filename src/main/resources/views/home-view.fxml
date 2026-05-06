@@ -28,4 +28,6 @@
     <Label fx:id="welcomeLabel" text="Chào mừng đến với Auction System"/>
     <!-- Nút test để kiểm tra controller -->
     <Button text="Xem danh sách đấu giá" onAction="#handleViewAuctions"/>
+    <Button text="ĐĂNG XUẤT"
+            onAction="#handleLogout"/>
 </VBox>

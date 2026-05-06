@@ -8,6 +8,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import org.example.model.User;
+import org.example.service.AppSession;
 
 import java.io.IOException;
 
@@ -50,6 +51,36 @@ public class HomeController {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
                     "Không thể tải file auction-list-view.fxml");
+            e.printStackTrace();
+        }
+    }
+    //hàm đăng xuất account
+    /**
+     * Đăng xuất tài khoản hiện tại và quay lại màn hình Login.
+     */
+    @FXML
+    private void handleLogout() {
+        try {
+            // Xóa username đang đăng nhập
+            AppSession.setCurrentUsername(null);
+
+            // Load lại màn hình đăng nhập
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/login-view.fxml")
+            );
+
+            Parent root = loader.load();
+
+            // Lấy cửa sổ hiện tại, không tạo cửa sổ mới
+            Stage stage = (Stage) welcomeLabel.getScene().getWindow();
+            stage.setScene(new Scene(root));
+            stage.setTitle("Đăng nhập");
+            stage.show();
+
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không đăng xuất được!");
             e.printStackTrace();
         }
     }

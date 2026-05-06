@@ -26,7 +26,7 @@ public class AuctionServer {
 
                 System.out.println("Ting ting! Có một khách hàng vừa kết nối: " + clientSocket.getInetAddress());
 
-                // Chuyển người dùng cho ClientHandler
+
                 ClientHandler handler = new ClientHandler(clientSocket);
 
                 // Đẩy ra luồng riêng để chạy song song
