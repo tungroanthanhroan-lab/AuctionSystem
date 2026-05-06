@@ -36,6 +36,10 @@ public abstract class User extends Entity {
         this.role = role;
     }
 
+
+
+
+
     @Override
     public String toString() {
         return "User{" +
