@@ -15,6 +15,7 @@ public class UserDAO {
                 + "username TEXT UNIQUE NOT NULL,"
                 + "password TEXT NOT NULL,"
                 + "role TEXT NOT NULL"
+                + "balance REAL DEFAULT 0.0"
                 + ");";
 
         // Lấy kết nối dùng chung
