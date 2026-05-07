@@ -52,18 +52,16 @@ public class AuctionDAO {
         }
     }
 
-    /**
-     * FIX BUG 1: Thêm phương thức này — AuctionService.loadActiveAuctionsFromDB() gọi nó.
-     * Lấy tất cả phiên đấu giá đang OPEN hoặc RUNNING từ DB.
-     */
-    public List<Auction> getAllOpenAuctions() {
-        List<Auction> list = new ArrayList<>();
-        String sql = "SELECT * FROM auctions WHERE status = 'OPEN' OR status = 'RUNNING'";
-        Connection conn = DatabaseConnection.getConnection();
-        try (Statement stmt = conn.createStatement();
+    // Lấy danh sách các phiên đấu giá đang MỞ (Sử dụng List và ArrayList ở đây nè)
+    public List<org.example.model.Auction> getActiveAuctions() {
+        List<org.example.model.Auction> activeAuctions = new ArrayList<>();
+        String sql = "SELECT * FROM auctions WHERE status = 'OPEN'";
+
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
-                Auction auction = new Auction(
+                activeAuctions.add(new org.example.model.Auction(
                         rs.getInt("id"),
                         rs.getInt("item_id"),
                         rs.getString("start_time"),
