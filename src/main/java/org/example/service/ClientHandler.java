@@ -98,6 +98,8 @@ public class ClientHandler implements Runnable, AuctionObserver {
                         double amount = Double.parseDouble(parts[2]);
                         String bidderName = parts[3];
 
+                        boolean sucess = auctionService.placeBid(auctionId, bidderName, amount);
+
                         Auction auction = new Auction(auctionId);
                         Bidder bidder = new Bidder(bidderName);
 
@@ -111,14 +113,16 @@ public class ClientHandler implements Runnable, AuctionObserver {
                         auctionNotifier.broadcast(event);
 
                     } catch (NumberFormatException e) {
-                        out.println("FAIL|Số tiền không hợp lệ");
+                        sendResponse("FAIL|Số tiền không hợp lệ");
                     }
                 } else {
-                    out.println("FAIL|Sai format BID");
+                    sendResponse("FAIL|Sai format BID");
                 }
             } else {
-                out.println("FAIL|Không hiểu lệnh");
+                sendResponse("FAIL|Không hiểu lệnh");
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -126,8 +130,8 @@ public class ClientHandler implements Runnable, AuctionObserver {
     @Override
     public void onBidUpdate(BidUpdateEvent event) {
         try {
-            objOut.writeObject(event);
-            objOut.flush();
+            out.writeObject(event);
+            out.flush();
         } catch (IOException e) {
             System.out.println("Không gửi được event → remove client");
             auctionNotifier.removeObserve(this);
