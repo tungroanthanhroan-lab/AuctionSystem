@@ -1,73 +1,47 @@
 package org.example.client;
 
-import org.example.observer.BidUpdateEvent;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.Scanner;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-/**
- * Client đấu giá — kết nối tới AuctionServer qua TCP Socket.
- *
- * FIX BUG 11: Thay PrintWriter/BufferedReader bằng ObjectOutputStream/ObjectInputStream
- *             để đồng nhất protocol với server (tránh StreamCorruptedException).
- */
 public class AuctionClient {
-
-    private static final String HOST = "localhost";
-    private static final int PORT = 8080;
-
     public static void main(String[] args) {
-        System.out.println("=== Auction Client ===");
-        System.out.println("Đang kết nối tới " + HOST + ":" + PORT + " ...");
+        System.out.println("Đang tìm đường đến Server...");
 
-        try (Socket socket = new Socket(HOST, PORT)) {
-            System.out.println("Kết nối thành công!\n");
+        // Tìm đến máy có địa chỉ "localhost" với port là 8080
+        try (Socket socket = new Socket("localhost", 8080)) {
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // FIX BUG 11: Dùng ObjectStream — cùng protocol với server
-            // LUÔN tạo Output trước Input để tránh Deadlock TCP
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+            // Gửi mật lệnh Đăng Ký
+            String command1 = "REGISTER|nguoichoi1|654321|USER";
 
-            // Luồng nền: lắng nghe thông báo real-time từ server
-            ExecutorService listener = Executors.newSingleThreadExecutor();
-            listener.submit(() -> {
-                try {
-                    Object response;
-                    while ((response = in.readObject()) != null) {
-                        if (response instanceof BidUpdateEvent event) {
-                            System.out.println("[🔔 BID UPDATE] Phiên [" + event.getAuctionId()
-                                    + "] — " + event.getBidder()
-                                    + " đặt giá: " + event.getNewHighestAmount());
-                        } else if (response instanceof String msg) {
-                            System.out.println("[Server] " + msg);
-                        }
-                    }
-                } catch (EOFException e) {
-                    System.out.println("Server đã đóng kết nối.");
-                } catch (Exception e) {
-                    System.out.println("Mất kết nối: " + e.getMessage());
-                }
-            });
+            out.println(command1);
+            System.out.println("Tôi đã gửi lệnh: " + command1);
 
-            // Đọc lệnh từ bàn phím
-            System.out.println("Nhập lệnh (REGISTER|LOGIN|VIEW_ITEMS|BID|EXIT):");
-            Scanner scanner = new Scanner(System.in);
-            while (scanner.hasNextLine()) {
-                String input = scanner.nextLine().trim();
-                if (input.isEmpty()) continue;
-                if ("EXIT".equalsIgnoreCase(input)) break;
-                out.writeObject(input);
-                out.flush();
+            // Server trả lời
+            System.out.println("Kết quả từ Server:");
+            String responseLine1;
+            while ((responseLine1 = in.readLine()) != null) {
+                System.out.println(responseLine1);
             }
 
-            listener.shutdown();
+            // Gửi chuỗi Đăng Nhập
+            String command = "LOGIN|nguoichoi1|654321";
+
+            out.println(command);
+            System.out.println("Tôi đã gửi lệnh: " + command);
+
+            // Server trả lời
+            System.out.println("Kết quả từ Server:");
+            String responseLine;
+            while ((responseLine = in.readLine()) != null) {
+                System.out.println(responseLine);
+            }
 
         } catch (Exception e) {
-            System.err.println("[Client] Lỗi kết nối: " + e.getMessage());
             e.printStackTrace();
         }
     }

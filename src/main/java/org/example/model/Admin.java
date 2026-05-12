@@ -1,6 +1,6 @@
 package org.example.model;
 
-public class Admin extends User {
+public class Admin extends User{
     private int adminLevel;
 
     public Admin(int id, String username, String password, String role, int adminLevel) {
