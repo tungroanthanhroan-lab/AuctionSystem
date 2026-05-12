@@ -42,7 +42,10 @@ public class HomeController {
             Stage stage = (Stage) welcomeLabel.getScene().getWindow();
 
             // Thay scene hiện tại bằng scene danh sách đấu giá
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Danh sách phiên đấu giá");
             stage.show();
 
@@ -73,7 +76,10 @@ public class HomeController {
 
             // Lấy cửa sổ hiện tại, không tạo cửa sổ mới
             Stage stage = (Stage) welcomeLabel.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Đăng nhập");
             stage.show();
 

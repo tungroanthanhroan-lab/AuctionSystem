@@ -37,7 +37,10 @@ public class SellerHomeController {
             Parent root = loader.load();
 
             Stage stage = (Stage) lblWelcome.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Tạo phiên đấu giá mới");
             stage.show();
 
@@ -59,7 +62,10 @@ public class SellerHomeController {
             Parent root = loader.load();
 
             Stage stage = (Stage) lblWelcome.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Đăng nhập");
             stage.show();
 

@@ -247,7 +247,10 @@ public class RegisterController {
             Parent root = loader.load();
 
             Stage stage = (Stage) txtUsername.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Đăng nhập");
             stage.show();
 

@@ -170,7 +170,10 @@ public class LoginController {
             Parent root = loader.load();
 
             Stage stage = (Stage) txtUsername.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Đăng ký tài khoản");
             stage.show();
 
@@ -197,7 +200,10 @@ public class LoginController {
             Parent root = loader.load();
 
             Stage stage = (Stage) txtUsername.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Auction System - Home");
             stage.show();
 
@@ -236,7 +242,10 @@ public class LoginController {
             Parent root = loader.load();
 
             Stage stage = (Stage) txtUsername.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Trang người bán");
             stage.show();
 

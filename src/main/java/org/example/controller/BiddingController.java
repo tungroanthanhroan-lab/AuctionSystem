@@ -235,7 +235,10 @@ public class BiddingController {
             Stage stage = (Stage) lblGiaHienTai.getScene().getWindow();
 
             // Chuyển scene hiện tại sang màn hình danh sách đấu giá
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Danh sách phiên đấu giá");
             stage.show();
 

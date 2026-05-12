@@ -1,50 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
-<?import javafx.scene.text.Font?>
 
-<!--
-    Màn hình danh sách các phiên đấu giá.
-    Người dùng chọn một phiên rồi bấm "VÀO ĐẤU GIÁ"
-    để chuyển sang màn hình bidding-view.fxml.
--->
-<VBox alignment="CENTER"
-      spacing="15"
-      xmlns="http://javafx.com/javafx/21"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="org.example.controller.AuctionListController">
+<StackPane xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="org.example.controller.AuctionListController"
+           stylesheets="@/styles/style.css"
+           prefWidth="720"
+           prefHeight="560">
 
-    <!-- Khoảng cách viền ngoài cho giao diện -->
-    <padding>
-        <Insets top="30" right="30" bottom="30" left="30"/>
-    </padding>
+    <VBox alignment="CENTER"
+          spacing="18"
+          styleClass="page-container"
+          maxWidth="600"
+          prefHeight="460">
 
-    <!-- Tiêu đề màn hình -->
-    <Label text="DANH SÁCH PHIÊN ĐẤU GIÁ">
-        <font>
-            <Font name="System Bold" size="22"/>
-        </font>
-    </Label>
+        <Label text="Danh sách phiên đấu giá"
+               styleClass="title-label"
+               alignment="CENTER"
+               textAlignment="CENTER"
+               maxWidth="520"/>
 
-    <!--
-        ListView hiển thị danh sách phiên đấu giá.
-        Dữ liệu tạm thời đang được thêm trong AuctionListController.initialize().
-    -->
-    <ListView fx:id="listAuctions"
-              prefWidth="400"
-              prefHeight="220"/>
+        <Label text="Chọn một phiên để tham gia đặt giá"
+               styleClass="subtitle-label"
+               alignment="CENTER"
+               textAlignment="CENTER"
+               maxWidth="520"/>
 
-    <!--
-        Khi bấm nút này sẽ gọi hàm handleOpenBidding()
-        trong AuctionListController.
-    -->
-    <Button text="VÀO ĐẤU GIÁ"
-            onAction="#handleOpenBidding"/>
-    <Button text="QUAY LẠI TRANG CHÍNH"
-            onAction="#handleBackToHome"/>
+        <ListView fx:id="listAuctions"
+                  prefWidth="520"
+                  prefHeight="260"/>
 
-</VBox>
+        <Button text="Vào đấu giá"
+                styleClass="primary-button"
+                defaultButton="true"
+                onAction="#handleOpenBidding"/>
+
+        <Button text="Quay lại trang chính"
+                styleClass="secondary-button"
+                onAction="#handleBackToHome"/>
+
+    </VBox>
+
+</StackPane>

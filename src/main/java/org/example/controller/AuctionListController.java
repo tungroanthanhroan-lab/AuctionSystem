@@ -83,7 +83,10 @@ public class AuctionListController {
 
             // Lấy cửa sổ hiện tại rồi thay scene sang màn hình bidding
             Stage stage = (Stage) listAuctions.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Màn hình Đấu giá Trực tiếp");
             stage.show();
 
@@ -106,7 +109,10 @@ public class AuctionListController {
             Parent root = loader.load();
 
             Stage stage = (Stage) listAuctions.getScene().getWindow();
-            stage.setScene(new Scene(root));
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
             stage.setTitle("Auction System - Home");
             stage.show();
 
