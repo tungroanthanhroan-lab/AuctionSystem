@@ -15,26 +15,36 @@ public class AuctionDAO {
                 "end_time TEXT, " +
                 "status TEXT DEFAULT 'OPEN', " +
                 "FOREIGN KEY(item_id) REFERENCES items(id))";
+
         try (Connection conn = DriverManager.getConnection(url);
              Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     // Mở một phiên đấu giá mới (Dành cho Admin/Seller)
     public boolean startAuction(int itemId, String endTime) {
         String sql = "INSERT INTO auctions(item_id, start_time, end_time, status) VALUES(?, datetime('now'), ?, 'OPEN')";
+
         try (Connection conn = DriverManager.getConnection(url);
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
             pstmt.setInt(1, itemId);
             pstmt.setString(2, endTime);
+
             return pstmt.executeUpdate() > 0;
-        } catch (SQLException e) { return false; }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
-    // Lấy danh sách các phiên đấu giá đang MỞ (Sử dụng List và ArrayList ở đây nè)
-    public List<org.example.service.Auction> getActiveAuctions() {
-        List<org.example.service.Auction> activeAuctions = new ArrayList<>();
+    // Lấy danh sách các phiên đấu giá đang MỞ
+    public List<String> getActiveAuctions() {
+        List<String> activeAuctions = new ArrayList<>();
         String sql = "SELECT * FROM auctions WHERE status = 'OPEN'";
 
         try (Connection conn = DriverManager.getConnection(url);
@@ -42,17 +52,24 @@ public class AuctionDAO {
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                activeAuctions.add(new org.example.service.Auction(
-                        rs.getInt("id"),
-                        rs.getInt("item_id"),
-                        rs.getString("start_time"),
-                        rs.getString("end_time"),
-                        rs.getString("status")
-                ));
+                int id = rs.getInt("id");
+                int itemId = rs.getInt("item_id");
+                String startTime = rs.getString("start_time");
+                String endTime = rs.getString("end_time");
+                String status = rs.getString("status");
+
+                activeAuctions.add(
+                        id + " - Item " + itemId +
+                                " - Bắt đầu: " + startTime +
+                                " - Kết thúc: " + endTime +
+                                " - Trạng thái: " + status
+                );
             }
+
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
         return activeAuctions;
     }
 }
