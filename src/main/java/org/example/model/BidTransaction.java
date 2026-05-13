@@ -1,6 +1,4 @@
-package org.example.service;
-
-import org.example.model.Bidder;
+package org.example.model;
 
 import java.time.LocalDateTime;
 

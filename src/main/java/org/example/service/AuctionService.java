@@ -1,9 +1,13 @@
 package org.example.service;
 
-import org.example.model.Item;
-import org.example.model.Bidder;
 import org.example.exception.AuctionClosedException;
 import org.example.exception.InvalidBidException;
+import org.example.model.AuctionStatus;
+import org.example.model.Bidder;
+import org.example.model.Item;
+import org.example.model.BidTransaction;
+import org.example.observer.AuctionNotifier;
+import org.example.observer.BidUpdateEvent;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -12,15 +16,21 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Quản lý logic nghiệp vụ của một phiên đấu giá.
+ * Quản lý logic nghiệp vụ của một phiên đấu giá (in-memory).
  *
- * Tính năng mới được tích hợp:
+ * Tính năng:
+ *  - Đặt giá thủ công với kiểm tra trạng thái và thời gian
  *  - Auto-Bidding : registerAutoBid() / cancelAutoBid()
  *  - Anti-Sniping : tự động gia hạn endTime khi có bid trong X giây cuối
+ *
+ * Import đã cập nhật:
+ *  - AuctionStatus từ org.example.model (thay vì org.example.service)
+ *  - AuctionNotifier, BidUpdateEvent từ org.example.observer
+ *  - BidTransaction từ org.example.model
  */
 public class AuctionService {
 
-    // ── Các field cũ giữ nguyên ──────────────────────────────────────────────
+    // ── Fields ───────────────────────────────────────────────────────────────
     private String auctionId;
     private Item item;
     private Bidder currentLeader;
@@ -32,37 +42,31 @@ public class AuctionService {
     private AuctionNotifier notifier;
     private final Lock lock = new ReentrantLock(true);
 
-    // ── Auto-Bidding: danh sách cấu hình auto-bid của các bidder ─────────────
-    // Dùng List thường vì đã bảo vệ bởi lock, không cần CopyOnWriteArrayList
+    // ── Auto-Bidding ──────────────────────────────────────────────────────────
     private final List<AutoBidConfig> autoBidConfigs = new ArrayList<>();
 
-    // ── Anti-Sniping: cấu hình thời gian ─────────────────────────────────────
-    /**
-     * Nếu có bid mới trong SNIPE_WINDOW_SECONDS giây cuối →
-     * gia hạn thêm SNIPE_EXTENSION_SECONDS giây.
-     * Có thể thay bằng setter nếu muốn cấu hình động.
-     */
+    // ── Anti-Sniping ──────────────────────────────────────────────────────────
     private static final long SNIPE_WINDOW_SECONDS    = 60;  // 1 phút cuối
     private static final long SNIPE_EXTENSION_SECONDS = 120; // gia hạn 2 phút
 
-    // ── Constructor giữ nguyên chữ ký ─────────────────────────────────────────
+    // ── Constructor ───────────────────────────────────────────────────────────
     public AuctionService(String auctionId, Item item, Bidder currentLeader,
                           AuctionStatus status, double startingPrice,
                           LocalDateTime startTime, LocalDateTime endTime,
                           AuctionNotifier notifier) {
-        this.auctionId       = auctionId;
-        this.item            = item;
-        this.currentLeader   = currentLeader;
-        this.status          = AuctionStatus.OPEN; // luôn bắt đầu từ OPEN
+        this.auctionId         = auctionId;
+        this.item              = item;
+        this.currentLeader     = currentLeader;
+        this.status            = AuctionStatus.OPEN;
         this.currentHighestBid = startingPrice;
-        this.startTime       = startTime;
-        this.endTime         = endTime;
-        this.bidHistory      = new ArrayList<>();
-        this.notifier        = notifier;
+        this.startTime         = startTime;
+        this.endTime           = endTime;
+        this.bidHistory        = new ArrayList<>();
+        this.notifier          = notifier;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  PHẦN 1 – PLACE BID (đã có sẵn, bổ sung gọi anti-snipe + trigger auto-bid)
+    //  PHẦN 1 – PLACE BID
     // ═══════════════════════════════════════════════════════════════════════════
 
     /**
@@ -74,45 +78,38 @@ public class AuctionService {
     public void placeBid(Bidder bidder, double bidAmount) {
         lock.lock();
         try {
-            // Kiểm tra trạng thái phiên
             if (status != AuctionStatus.RUNNING) {
                 throw new AuctionClosedException("Phien dau gia nay hien khong mo! Vui long quay lai sau!");
             }
 
-            // Kiểm tra thời gian (phòng khi luồng chưa kịp đóng phiên)
             if (LocalDateTime.now().isAfter(endTime)) {
                 closeAuction();
                 throw new AuctionClosedException("Phien dau gia hien da dong!");
             }
 
-            // Kiểm tra giá hợp lệ
             if (bidAmount <= currentHighestBid) {
                 throw new InvalidBidException("Muc gia dat phai cao hon muc gia hien tai: " + currentHighestBid);
             }
 
-            // ── Chấp nhận bid ────────────────────────────────────────────────
+            // Chấp nhận bid
             currentHighestBid = bidAmount;
             currentLeader     = bidder;
-
-            BidTransaction transaction = new BidTransaction(bidder, bidAmount, LocalDateTime.now());
-            bidHistory.add(transaction);
+            bidHistory.add(new BidTransaction(bidder, bidAmount, LocalDateTime.now()));
 
             System.out.println("[BID] " + bidder.getUsername() + " dat gia " + bidAmount);
 
-            // ── Anti-Sniping ─────────────────────────────────────────────────
+            // Anti-Sniping
             applyAntiSnipe();
 
-            // ── Thông báo realtime cho các client (Observer) ─────────────────
+            // Broadcast realtime
             if (notifier != null) {
                 BidUpdateEvent event = new BidUpdateEvent(
-                        auctionId, bidAmount, bidder,
-                        LocalDateTime.now().toString()
+                        null, bidAmount, bidder, LocalDateTime.now().toString()
                 );
                 notifier.broadcast(event);
             }
 
-            // ── Kích hoạt auto-bid của các đối thủ ──────────────────────────
-            // Chạy trong một luồng riêng để không block người đặt giá thủ công
+            // Kích hoạt auto-bid đối thủ (luồng riêng)
             triggerAutoBids(bidder);
 
         } finally {
@@ -129,10 +126,8 @@ public class AuctionService {
      * Phải được gọi bên trong lock.
      */
     private void applyAntiSnipe() {
-        LocalDateTime now     = LocalDateTime.now();
         LocalDateTime windowStart = endTime.minusSeconds(SNIPE_WINDOW_SECONDS);
-
-        if (now.isAfter(windowStart)) {
+        if (LocalDateTime.now().isAfter(windowStart)) {
             LocalDateTime newEndTime = endTime.plusSeconds(SNIPE_EXTENSION_SECONDS);
             System.out.println("[ANTI-SNIPE] Phat hien bid trong " + SNIPE_WINDOW_SECONDS
                     + "s cuoi! Gia han phien den: " + newEndTime);
@@ -146,10 +141,7 @@ public class AuctionService {
 
     /**
      * Đăng ký auto-bid cho một bidder.
-     * Nếu bidder đã đăng ký trước đó → ghi đè (hủy config cũ, thêm config mới).
-     *
-     * @param config cấu hình auto-bid (maxBid, increment, bidder)
-     * @throws InvalidBidException nếu maxBid không đủ cao hơn giá hiện tại
+     * Nếu bidder đã đăng ký trước đó → ghi đè.
      */
     public void registerAutoBid(AutoBidConfig config) {
         lock.lock();
@@ -162,9 +154,7 @@ public class AuctionService {
                         "maxBid (" + config.getMaxBid() + ") phai lon hon gia hien tai (" + currentHighestBid + ")");
             }
 
-            // Hủy config cũ nếu bidder đã đăng ký
             cancelAutoBid(config.getBidder());
-
             autoBidConfigs.add(config);
             System.out.println("[AUTO-BID] Da dang ky: " + config);
 
@@ -180,7 +170,7 @@ public class AuctionService {
     public void cancelAutoBid(Bidder bidder) {
         lock.lock();
         try {
-            autoBidConfigs.removeIf(c -> c.getBidder().getId() == (bidder.getId()));
+            autoBidConfigs.removeIf(c -> c.getBidder().getId() == bidder.getId());
             System.out.println("[AUTO-BID] Da huy auto-bid cua: " + bidder.getUsername());
         } finally {
             lock.unlock();
@@ -188,22 +178,16 @@ public class AuctionService {
     }
 
     /**
-     * Sau khi một bid thủ công hoặc auto-bid được chấp nhận,
-     * kích hoạt auto-bid của các đối thủ (không phải người vừa thắng).
-     *
+     * Kích hoạt auto-bid của các đối thủ sau khi có bid mới.
      * Chạy trong luồng riêng để không block caller.
-     * Logic ưu tiên: đăng ký sớm hơn được xét trước (FIFO theo registeredAt).
-     *
-     * @param lastBidder người vừa đặt giá thắng (bỏ qua auto-bid của họ)
      */
     private void triggerAutoBids(Bidder lastBidder) {
-        // Tạo snapshot để tránh giữ lock quá lâu trong vòng lặp đệ quy
         new Thread(() -> processAutoBids(lastBidder)).start();
     }
 
     /**
-     * Xử lý tuần tự các auto-bid theo thứ tự đăng ký.
-     * Vòng lặp tiếp tục cho đến khi không còn auto-bid nào có thể trả giá.
+     * Xử lý tuần tự các auto-bid theo thứ tự đăng ký (FIFO).
+     * Người đăng ký sớm hơn được ưu tiên xét trước.
      */
     private void processAutoBids(Bidder skipBidder) {
         boolean anyBidPlaced = true;
@@ -220,15 +204,15 @@ public class AuctionService {
                 // có đủ maxBid, đăng ký sớm nhất được ưu tiên)
                 AutoBidConfig winner = null;
                 for (AutoBidConfig cfg : autoBidConfigs) {
-                    // Bỏ qua người đang dẫn đầu (họ đã thắng rồi)
-                    if (cfg.getBidder().getId() == (currentLeader.getId())) continue;
+                    // Bỏ qua người đang dẫn đầu (do đã thắng rồi)
+                    if (cfg.getBidder().getId() == currentLeader.getId()) continue;
 
                     double nextBid = currentHighestBid + cfg.getIncrement();
 
-                    // Kiểm tra không vượt maxBid
+                    // Kiểm tra để ko vượt quá maxBid
                     if (nextBid > cfg.getMaxBid()) continue;
 
-                    // Ưu tiên người đăng ký sớm hơn
+                    // ưu tiên người đăng kí sơm hơn
                     if (winner == null || cfg.getRegisteredAt().isBefore(winner.getRegisteredAt())) {
                         winner = cfg;
                     }
@@ -238,19 +222,16 @@ public class AuctionService {
                     double autoBidAmount = currentHighestBid + winner.getIncrement();
                     System.out.println("[AUTO-BID] " + winner.getBidder().getUsername()
                             + " tu dong dat gia: " + autoBidAmount);
-
                     // Cập nhật trực tiếp (đã ở trong lock, không gọi placeBid để tránh deadlock)
                     currentHighestBid = autoBidAmount;
                     currentLeader     = winner.getBidder();
                     bidHistory.add(new BidTransaction(winner.getBidder(), autoBidAmount, LocalDateTime.now()));
 
-                    // Anti-sniping cũng áp dụng cho auto-bid
                     applyAntiSnipe();
 
-                    // Broadcast
                     if (notifier != null) {
                         BidUpdateEvent event = new BidUpdateEvent(
-                                auctionId, autoBidAmount, winner.getBidder(),
+                                null, autoBidAmount, winner.getBidder(),
                                 LocalDateTime.now().toString()
                         );
                         notifier.broadcast(event);
@@ -263,7 +244,6 @@ public class AuctionService {
                 lock.unlock();
             }
 
-            // Nhường CPU giữa các vòng lặp để tránh busy-waiting
             if (anyBidPlaced) {
                 try { Thread.sleep(50); } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -274,12 +254,13 @@ public class AuctionService {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  PHẦN 4 – closeAuction (giữ nguyên như cũ)
+    //  PHẦN 4 – CLOSE AUCTION
     // ═══════════════════════════════════════════════════════════════════════════
 
     /**
      * Đóng phiên đấu giá và xác định người thắng cuộc.
      */
+
     public synchronized void closeAuction() {
         if (status == AuctionStatus.RUNNING) {
             status = AuctionStatus.FINISHED;
@@ -293,7 +274,7 @@ public class AuctionService {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  GETTERS / SETTERS (giữ nguyên như cũ)
+    //  GETTERS / SETTERS
     // ═══════════════════════════════════════════════════════════════════════════
 
     public String getAuctionId() { return auctionId; }
@@ -306,7 +287,7 @@ public class AuctionService {
     public void setCurrentLeader(Bidder currentLeader) { this.currentLeader = currentLeader; }
 
     public double getCurrentHighestBid() { return currentHighestBid; }
-    public void setCurrentHighestBid(double currentHighestBid) { this.currentHighestBid = currentHighestBid; }
+    public void setCurrentHighestBid(double v) { this.currentHighestBid = v; }
 
     public AuctionStatus getStatus() { return status; }
     public void setStatus(AuctionStatus status) { this.status = status; }

@@ -1,4 +1,4 @@
-package org.example.service;
+package org.example.observer;
 
 import org.example.model.Bidder; // Import đúng đường dẫn trong project của bạn
 

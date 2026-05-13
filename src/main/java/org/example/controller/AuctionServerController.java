@@ -3,10 +3,10 @@ package org.example.controller;
 import org.example.exception.AuctionClosedException;
 import org.example.exception.InvalidBidException;
 import org.example.model.Bidder;
-import org.example.service.AuctionService;
+import org.example.model.Auction;
 
 public class AuctionServerController {
-    private AuctionService auction;
+    private Auction auction;
 
     /**
      * ham nay duoc goi khi server nhan duoc goi tin yeu cau dat gia tu client

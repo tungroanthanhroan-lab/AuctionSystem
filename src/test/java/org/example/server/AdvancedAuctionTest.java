@@ -2,8 +2,10 @@ package org.example.server;
 
 import org.example.exception.AuctionClosedException;
 import org.example.exception.InvalidBidException;
+import org.example.model.AuctionStatus;
 import org.example.model.Bidder;
 import org.example.model.Item;
+import org.example.observer.AuctionNotifier;
 import org.example.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
