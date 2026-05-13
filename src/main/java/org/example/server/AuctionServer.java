@@ -1,40 +1,86 @@
 package org.example.server;
 
-import java.io.BufferedReader;
+import org.example.dao.AuctionDAO;
+import org.example.dao.BidDAO;
+import org.example.dao.ItemDAO;
+import org.example.dao.UserDAO;
+import org.example.observer.AuctionNotifier;
+import org.example.service.AuctionService;
+import org.example.service.ClientHandler;
+import org.example.service.UserService;
+
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+/**
+ * Entry point của Auction Server.
+ *
+ * FIX BUG 4: Khởi tạo đầy đủ dependencies và truyền vào ClientHandler (4 tham số).
+ * FIX BUG 10: Dùng ExecutorService (CachedThreadPool) thay vì new Thread() thủ công.
+ */
 public class AuctionServer {
-    // Mở cổng port số 8080
+
     private static final int PORT = 8080;
+    // Giới hạn tối đa 100 client đồng thời để bảo vệ tài nguyên
+    private static final int MAX_THREADS = 100;
 
     public static void main(String[] args) {
-        System.out.println("Đang khởi động Server Đấu Giá...");
+        System.out.println("=== Khởi động Auction Server ===");
+
+        // ── Khởi tạo DB schema ──
+        UserDAO userDAO = new UserDAO();
+        userDAO.createTableIfNotExists();
+
+        ItemDAO itemDAO = new ItemDAO();
+        itemDAO.createTableIfNotExists();
+
+        AuctionDAO auctionDAO = new AuctionDAO();
+        auctionDAO.createTable();
+
+        BidDAO bidDAO = new BidDAO();
+        bidDAO.createTable();
+
+        // ── Khởi tạo Services ──
+        AuctionNotifier notifier = new AuctionNotifier();
+        UserService userService = new UserService(userDAO);
+        AuctionService auctionService = new AuctionService(auctionDAO, notifier);
+
+        // FIX BUG 10: ThreadPool có giới hạn, không tạo thread vô hạn
+        ExecutorService clientPool = Executors.newFixedThreadPool(MAX_THREADS);
+
+        // Shutdown hook: dọn dẹp khi server bị tắt
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("\n[Server] Đang tắt server...");
+            clientPool.shutdown();
+            notifier.shutdown();
+            System.out.println("[Server] Server đã tắt sạch.");
+        }));
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-            System.out.println("Server đã chạy trên cổng " + PORT + ". Server đang chờ người dùng kết nối...");
+            System.out.println("[Server] Đang lắng nghe trên cổng " + PORT + "...");
 
-            // Vòng lặp vô hạn (while true) để server làm việc 24/24
             while (true) {
-                // Lệnh accept() này sẽ "đứng hình" chờ ở đây cho đến khi có 1 Client kết nối tới
                 Socket clientSocket = serverSocket.accept();
+                System.out.println("[Server] Client mới kết nối: " + clientSocket.getInetAddress());
 
-                System.out.println("Ting ting! Có một khách hàng vừa kết nối: " + clientSocket.getInetAddress());
+                // FIX BUG 7: Truyền đủ 5 tham số vào ClientHandler constructor
+                ClientHandler handler = new ClientHandler(
+                        clientSocket,
+                        userService,
+                        auctionService,
+                        notifier,
+                        bidDAO
+                );
 
-                // Chuyển người dùng cho ClientHandler
-                ClientHandler handler = new ClientHandler(clientSocket);
-
-                // Đẩy ra luồng riêng để chạy song song
-                Thread thread = new Thread(handler);
-                thread.start();
-
-                // Server lập tức quay lại bước 1 chờ người dùng mới
+                // FIX BUG 10: Submit vào pool thay vì new Thread().start()
+                clientPool.submit(handler);
             }
+
         } catch (IOException e) {
-            System.err.println("Lỗi Server: Cổng " + PORT + " có thể đã bị phần mềm khác chiếm dụng!");
+            System.err.println("[Server] Lỗi: Cổng " + PORT + " có thể đã bị chiếm dụng!");
             e.printStackTrace();
         }
     }
