@@ -2,10 +2,13 @@ package org.example.service;
 
 import org.example.dao.AuctionDAO;
 import org.example.model.Auction;
+import org.example.model.AuctionStatus;
+import org.example.model.Item;
 import org.example.observer.BidUpdateEvent;
 import org.example.model.Bidder;
 import org.example.observer.AuctionNotifier;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -95,5 +98,66 @@ public class AuctionService {
     // Các hàm phụ trợ khác (có thể dùng cho chức năng VIEW_ITEMS)
     public List<Auction> getActiveAuctionsList() {
         return List.copyOf(activeAuctions.values());
+    }
+
+    /**
+     * Tạo phiên đấu giá mới:
+     *   1. Build Auction object đầy đủ (status=OPEN, startTime=now)
+     *   2. INSERT xuống DB qua DAO (DAO sẽ set lại auctionId từ generated key)
+     *   3. Thêm vào activeAuctions trên RAM ngay lập tức
+     *
+     * Format lệnh từ client: CREATE_AUCTION|itemId|startingPrice|endTime
+     *   - itemId        : id của item trong bảng items
+     *   - startingPrice : giá khởi điểm (double)
+     *   - endTime       : thời điểm kết thúc dạng ISO (yyyy-MM-ddTHH:mm)
+     *
+     * @return true nếu tạo thành công
+     */
+    public boolean createAuction(int itemId, double startingPrice, String endTime) {
+        try {
+            // 1. Parse endTime từ String sang LocalDateTime
+            LocalDateTime end = LocalDateTime.parse(endTime);
+            LocalDateTime start = LocalDateTime.now();
+
+            // 2. Tạo Item tham chiếu (chỉ cần id để ghi xuống DB)
+            Item item = new Item();
+            item.setId(itemId);
+
+            // 3. Build Auction object — auctionId sẽ được DAO set sau INSERT
+            Auction newAuction = new Auction(
+                    null,           // auctionId — sẽ được DAO gán sau
+                    item,
+                    null,           // chưa có leader
+                    AuctionStatus.OPEN,
+                    startingPrice,
+                    start,
+                    end,
+                    auctionNotifier
+            );
+
+            // 4. INSERT vào DB — DAO tự set auctionId từ RETURN_GENERATED_KEYS
+            boolean saved = auctionDAO.insertAuction(newAuction);
+
+            if (saved) {
+                // 5. Đưa vào RAM cache để client có thể BID ngay
+                activeAuctions.put(newAuction.getAuctionId(), newAuction);
+                System.out.println("[AuctionService] Phiên đấu giá mới: id="
+                        + newAuction.getAuctionId()
+                        + " | item=" + itemId
+                        + " | giá khởi điểm=" + startingPrice
+                        + " | kết thúc=" + end);
+                return true;
+            }
+
+            System.err.println("[AuctionService] Tạo phiên đấu giá thất bại — DB không lưu được.");
+            return false;
+
+        } catch (java.time.format.DateTimeParseException e) {
+            System.err.println("[AuctionService] endTime không đúng định dạng ISO (yyyy-MM-ddTHH:mm): " + endTime);
+            return false;
+        } catch (Exception e) {
+            System.err.println("[AuctionService] Lỗi khi tạo phiên đấu giá: " + e.getMessage());
+            return false;
+        }
     }
 }
