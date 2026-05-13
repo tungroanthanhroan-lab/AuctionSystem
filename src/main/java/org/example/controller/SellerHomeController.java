@@ -7,10 +7,9 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
-import org.example.service.AppSession;
 
 import java.io.IOException;
-
+import org.example.service.AppSession;
 public class SellerHomeController {
 
     @FXML

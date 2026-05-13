@@ -10,13 +10,13 @@
            fx:controller="org.example.controller.HomeController"
            stylesheets="@/styles/style.css"
            prefWidth="620"
-           prefHeight="500">
+           prefHeight="520">
 
     <VBox alignment="CENTER"
           spacing="18"
           styleClass="page-container"
           maxWidth="420"
-          prefHeight="360">
+          prefHeight="390">
 
         <Label fx:id="welcomeLabel"
                text="Chào mừng đến với Auction System"
@@ -26,16 +26,20 @@
                textAlignment="CENTER"
                maxWidth="340"/>
 
-        <Label text="Bạn có thể xem danh sách phiên đấu giá và tham gia đặt giá."
+        <Label text="Bạn có thể tham gia đấu giá hoặc tạo phiên đấu giá mới."
                styleClass="subtitle-label"
                wrapText="true"
                alignment="CENTER"
                textAlignment="CENTER"
                maxWidth="320"/>
 
-        <Button text="Xem danh sách đấu giá"
+        <Button text="Tham gia đấu giá"
                 styleClass="primary-button"
                 onAction="#handleViewAuctions"/>
+
+        <Button text="Tạo phiên đấu giá"
+                styleClass="secondary-button"
+                onAction="#handleOpenCreateAuction"/>
 
         <Button text="Đăng xuất"
                 styleClass="danger-button"

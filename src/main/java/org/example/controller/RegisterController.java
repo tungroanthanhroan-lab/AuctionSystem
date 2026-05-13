@@ -6,11 +6,9 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
 import org.example.service.NetworkService;
 
@@ -32,10 +30,6 @@ public class RegisterController {
     //ô nhập lại mật khẩu
     @FXML
     private PasswordField txtConfirmPassword;
-
-    // ComboBox chọn vai trò: BIDDER hoặc SELLER
-    @FXML
-    private ComboBox<String> cbRole;
 
     // Nút đăng ký
     @FXML
@@ -63,83 +57,50 @@ public class RegisterController {
     /*
      * initialize() tự động chạy sau khi register-view.fxml được load.
      * Ở đây ta:
-     * - Thêm BIDDER / SELLER vào ComboBox
      * - Cài đặt điều hướng bằng phím mũi tên và Enter
      */
     @FXML
     public void initialize() {
-        // Thêm các vai trò cho ComboBox
-        cbRole.getItems().addAll("BIDDER", "SELLER");
-
-        // Username: xuống hoặc Enter thì sang ô mật khẩu
+        // Ô username: xuống thì sang ô password
         txtUsername.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
+            if (event.getCode() == KeyCode.DOWN) {
                 txtPassword.requestFocus();
                 event.consume();
             }
         });
 
-        // Password: lên thì về username, xuống hoặc Enter thì sang confirm password
+        // Ô password: lên thì về username, xuống thì sang ô nhập lại mật khẩu
         txtPassword.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
                 txtUsername.requestFocus();
                 event.consume();
 
-            } else if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
+            } else if (event.getCode() == KeyCode.DOWN) {
                 txtConfirmPassword.requestFocus();
                 event.consume();
             }
         });
 
-        // Confirm password: lên thì về password, xuống hoặc Enter thì sang chọn role
+        // Ô nhập lại mật khẩu: lên thì về password, xuống thì sang nút đăng ký, Enter thì đăng ký
         txtConfirmPassword.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
                 txtPassword.requestFocus();
                 event.consume();
 
-            } else if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
-                cbRole.requestFocus();
-                event.consume();
-            }
-        });
-        // Click chuột vào ComboBox thì xổ danh sách lựa chọn
-        cbRole.setOnMouseClicked(event -> {
-            cbRole.show();
-        });
-
-        // Role:
-// - Enter: xổ danh sách lựa chọn BIDDER / SELLER
-// - Nếu đã chọn role rồi:
-//   + Mũi tên xuống chuyển sang nút Đăng ký
-//   + Mũi tên lên quay lại ô Nhập lại mật khẩu
-// - Không để mũi tên xuống tự đổi BIDDER thành SELLER
-        cbRole.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                cbRole.show();
-                event.consume();
-
             } else if (event.getCode() == KeyCode.DOWN) {
-                if (cbRole.getValue() == null) {
-                    cbRole.show();
-                } else {
-                    btnRegister.requestFocus();
-                }
+                btnRegister.requestFocus();
                 event.consume();
 
-            } else if (event.getCode() == KeyCode.UP) {
-                if (cbRole.getValue() == null) {
-                    cbRole.show();
-                } else {
-                    txtConfirmPassword.requestFocus();
-                }
+            } else if (event.getCode() == KeyCode.ENTER) {
+                handleRegister();
                 event.consume();
             }
         });
 
-        // Nút Đăng ký: lên thì về role, xuống thì sang nút quay lại, Enter thì đăng ký
+        // Nút Đăng ký: lên thì về ô nhập lại mật khẩu, xuống thì sang nút quay lại, Enter thì đăng ký
         btnRegister.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
-                cbRole.requestFocus();
+                txtConfirmPassword.requestFocus();
                 event.consume();
 
             } else if (event.getCode() == KeyCode.DOWN) {
@@ -178,13 +139,17 @@ public class RegisterController {
      * 3. Gửi REGISTER lên server qua NetworkService.
      * 4. Nếu server phản hồi thành công thì quay lại màn Login.
      */
-
     @FXML
     private void handleRegister() {
         String username = txtUsername.getText();
         String password = txtPassword.getText();
         String confirmPassword = txtConfirmPassword.getText();
-        String role = cbRole.getValue();
+
+        /*
+         * Vì màn đăng ký không còn chọn role nữa,
+         * ta để mặc định tài khoản có cả quyền mua và bán.
+         */
+        String role = "BOTH";
 
         if (username == null || username.trim().isEmpty()) {
             showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa nhập tài khoản!");
@@ -196,13 +161,13 @@ public class RegisterController {
             return;
         }
 
-        if (!password.equals(confirmPassword)) {
-            showAlert(Alert.AlertType.ERROR, "Lỗi", "Mật khẩu nhập lại không khớp!");
+        if (confirmPassword == null || confirmPassword.trim().isEmpty()) {
+            showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa nhập lại mật khẩu!");
             return;
         }
 
-        if (role == null) {
-            showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa chọn vai trò!");
+        if (!password.equals(confirmPassword)) {
+            showAlert(Alert.AlertType.ERROR, "Lỗi", "Mật khẩu nhập lại không khớp!");
             return;
         }
 
@@ -219,7 +184,7 @@ public class RegisterController {
         if (response.startsWith("SUCCESS")) {
             showAlert(Alert.AlertType.INFORMATION,
                     "Đăng ký thành công",
-                    response.split("\\|", 2)[1]);
+                    layNoiDungPhanHoi(response));
 
             handleBackToLogin();
             return;
@@ -228,7 +193,7 @@ public class RegisterController {
         if (response.startsWith("FAIL")) {
             showAlert(Alert.AlertType.ERROR,
                     "Đăng ký thất bại",
-                    response.split("\\|", 2)[1]);
+                    layNoiDungPhanHoi(response));
             return;
         }
 
@@ -260,6 +225,22 @@ public class RegisterController {
                     "Không quay lại được màn hình đăng nhập!");
             e.printStackTrace();
         }
+    }
+
+    /*
+     * Tách nội dung sau dấu | trong phản hồi từ server.
+     * Ví dụ:
+     * SUCCESS|Đăng ký thành công
+     * -> Đăng ký thành công
+     */
+    private String layNoiDungPhanHoi(String response) {
+        String[] parts = response.split("\\|", 2);
+
+        if (parts.length == 2) {
+            return parts[1];
+        }
+
+        return response;
     }
 
     private void showAlert(Alert.AlertType type, String title, String content) {

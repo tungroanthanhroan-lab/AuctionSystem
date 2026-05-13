@@ -1,6 +1,5 @@
 package org.example.controller;
 
-import org.example.service.AppSession;
 import org.example.service.AuctionDataStore;
 import javafx.scene.control.Button;
 import javafx.scene.input.KeyCode;
@@ -15,9 +14,8 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Label;
 import javafx.application.Platform;
-import javafx.scene.control.Button;
 import org.example.service.NetworkService;
-
+import org.example.service.AppSession;
 public class BiddingController {
     //khai bao cac thanh phan co fx:id ben file FXML
     @FXML

@@ -9,7 +9,6 @@ import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import org.example.model.User;
 import org.example.service.AppSession;
-
 import java.io.IOException;
 
 public class HomeController {
@@ -87,6 +86,31 @@ public class HomeController {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
                     "Không đăng xuất được!");
+            e.printStackTrace();
+        }
+    }
+    @FXML
+    private void handleOpenCreateAuction() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/create-auction-view.fxml")
+            );
+
+            Parent root = loader.load();
+
+            Stage stage = (Stage) welcomeLabel.getScene().getWindow();
+
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
+            stage.setTitle("Tạo phiên đấu giá");
+            stage.show();
+
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không mở được màn hình tạo phiên đấu giá!");
             e.printStackTrace();
         }
     }

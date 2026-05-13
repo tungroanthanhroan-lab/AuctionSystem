@@ -9,9 +9,8 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.stage.Stage;
-import org.example.service.AppSession;
 import org.example.service.NetworkService;
-
+import org.example.service.AppSession;
 import java.io.IOException;
 public class LoginController {
 
@@ -128,13 +127,8 @@ public class LoginController {
                     "Đăng nhập thành công",
                     layNoiDungPhanHoi(response));
 
-            if (response.toUpperCase().contains("SELLER")) {
-                System.out.println("Dang mo man hinh Seller Home...");
-                openSellerHomeView();
-            } else {
-                System.out.println("Dang mo man hinh Home...");
-                openHomeView();
-            }
+            System.out.println("Dang mo man hinh Home...");
+            openHomeView();
 
             return;
         }
