@@ -83,10 +83,7 @@ public class AuctionListController {
 
             // Lấy cửa sổ hiện tại rồi thay scene sang màn hình bidding
             Stage stage = (Stage) listAuctions.getScene().getWindow();
-            double currentWidth = stage.getWidth();
-            double currentHeight = stage.getHeight();
-
-            stage.setScene(new Scene(root, currentWidth, currentHeight));
+            stage.setScene(new Scene(root));
             stage.setTitle("Màn hình Đấu giá Trực tiếp");
             stage.show();
 
@@ -95,31 +92,6 @@ public class AuctionListController {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
                     "Không mở được màn hình đấu giá!");
-            e.printStackTrace();
-        }
-    }
-    //hàm để quay lại màn hình chính
-    @FXML
-    private void handleBackToHome() {
-        try {
-            FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/views/home-view.fxml")
-            );
-
-            Parent root = loader.load();
-
-            Stage stage = (Stage) listAuctions.getScene().getWindow();
-            double currentWidth = stage.getWidth();
-            double currentHeight = stage.getHeight();
-
-            stage.setScene(new Scene(root, currentWidth, currentHeight));
-            stage.setTitle("Auction System - Home");
-            stage.show();
-
-        } catch (IOException e) {
-            showAlert(Alert.AlertType.ERROR,
-                    "Lỗi",
-                    "Không quay lại được màn hình chính!");
             e.printStackTrace();
         }
     }

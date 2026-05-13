@@ -18,6 +18,7 @@ public class UserDAO {
                 + "username TEXT UNIQUE NOT NULL,"
                 + "password TEXT NOT NULL,"
                 + "role TEXT NOT NULL"
+                + "balance REAL DEFAULT 0.0"
                 + ");";
 
         // Lấy kết nối dùng chung
@@ -37,7 +38,7 @@ public class UserDAO {
 
         Connection conn = DatabaseConnection.getConnection();
 
-        // 2. Cho xe rùa chở 3 món hàng (username, pass, role) chạy xuống DB
+        // Cho 3 dữ liệu vừa nhập (username, pass, role) chạy xuống DB
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, password);

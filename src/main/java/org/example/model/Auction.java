@@ -1,10 +1,9 @@
-package org.example.service;
+package org.example.model;
 
 import org.example.controller.BidResponse;
-import org.example.model.Item;
-import org.example.model.Bidder;
 import org.example.exception.AuctionClosedException;
 import org.example.exception.InvalidBidException;
+import org.example.observer.AuctionNotifier;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -137,9 +136,6 @@ public class Auction {
         } finally {
             lock.unlock();
         }
-
-
-        // TODO: (Nâng cao) Kích hoạt Event/Observer để thông báo realtime cho các client khác
 
     }
 

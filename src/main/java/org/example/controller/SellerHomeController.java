@@ -62,6 +62,7 @@ public class SellerHomeController {
             Parent root = loader.load();
 
             Stage stage = (Stage) lblWelcome.getScene().getWindow();
+
             double currentWidth = stage.getWidth();
             double currentHeight = stage.getHeight();
 
@@ -76,6 +77,10 @@ public class SellerHomeController {
             e.printStackTrace();
         }
     }
+//    Đã gửi
+//    Soạn
+//    Viết cho
+
 
     private void showAlert(Alert.AlertType type, String title, String content) {
         Alert alert = new Alert(type);

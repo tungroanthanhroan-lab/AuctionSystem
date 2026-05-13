@@ -1,46 +1,25 @@
 package org.example;
 
-// Import Application để tạo app JavaFX
-import javafx.application.Application;
-
-// Import FXMLLoader để load file FXML
-import javafx.fxml.FXMLLoader;
-
-// Import Parent làm node gốc của giao diện
-import javafx.scene.Parent;
-
-// Import Scene để chứa giao diện
-import javafx.scene.Scene;
-
-// Import Stage là cửa sổ chính
-import javafx.stage.Stage;
 import org.example.dao.UserDAO;
+import org.example.model.User;
 
-public class Main extends Application {
-
-    @Override
-    public void start(Stage stage) throws Exception {
-        // Load file giao diện login từ thư mục resources/views
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/login-view.fxml"));
-        Parent root = loader.load();
-
-        // Tạo scene với kích thước 400x300
-        Scene scene = new Scene(root, 400, 300);
-
-        // Đặt tiêu đề cửa sổ
-        stage.setTitle("Auction System - Login");
-
-        // Gắn scene vào stage
-        stage.setScene(scene);
-
-        // Hiển thị cửa sổ
-        stage.show();
-    }
-
+public class Main {
     public static void main(String[] args) {
-        new UserDAO().createTableIfNotExists();
-        new UserDAO().registerUser("Phuscc", "09122007","admin");
-        // Khởi chạy ứng dụng JavaFX
-        launch(args);
+        UserDAO userDAO = new UserDAO();
+
+        // 1. Tạo bảng (nếu chưa có)
+        userDAO.createTableIfNotExists();
+
+        // 2. Đăng ký thử 1 user
+        boolean isRegistered = userDAO.registerUser("admin", "123456", "ADMIN");
+        if (isRegistered) System.out.println("Đăng ký thành công!");
+
+        // 3. Đăng nhập thử
+        User user = userDAO.login("admin", "123456");
+        if (user != null) {
+            System.out.println("Chào mừng: " + user.getUsername() + " với quyền: " + user.getRole());
+        } else {
+            System.out.println("Sai tài khoản hoặc mật khẩu!");
+        }
     }
 }
