@@ -1,119 +1,192 @@
 package org.example.service;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import org.example.dao.BidDAO;
+import org.example.model.Auction;
+import org.example.model.User;
+import org.example.model.Bidder;
+import org.example.observer.AuctionNotifier;
+import org.example.observer.AuctionObserver;
+import org.example.observer.BidUpdateEvent;
+
+import java.io.*;
 import java.net.Socket;
+import java.util.List;
 
-public class ClientHandler implements Runnable {
-    private Socket socket;
+/**
+ * Xử lý một client kết nối — chạy trên Thread riêng.
+ * Implements AuctionObserver để nhận thông báo real-time từ AuctionNotifier.
+ *
+ * FIX BUG 8: Đồng nhất protocol — dùng ObjectOutputStream/ObjectInputStream
+ *            nhất quán với cách server ghi dữ liệu.
+ * FIX BUG 5: Bỏ đoạn broadcast thừa trong case BID — AuctionService đã broadcast bên trong.
+ */
+public class ClientHandler implements Runnable, AuctionObserver {
+    private final Socket socket;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
 
-    public ClientHandler(Socket socket) {
+    private final UserService userService;
+    private final AuctionService auctionService;
+    private final AuctionNotifier auctionNotifier;
+    private final BidDAO bidDAO;
+
+    // Lưu user đang đăng nhập — dùng để ghi bid đúng userId vào DB
+    private User loggedInUser;
+
+    public ClientHandler(Socket socket, UserService userService,
+                         AuctionService auctionService, AuctionNotifier auctionNotifier,
+                         BidDAO bidDAO) {
         this.socket = socket;
+        this.userService = userService;
+        this.auctionService = auctionService;
+        this.auctionNotifier = auctionNotifier;
+        this.bidDAO = bidDAO;
     }
 
     @Override
     public void run() {
         try {
-            // Nhận dữ liệu từ client
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream())
-            );
+            // LUÔN tạo Output trước Input để tránh Deadlock TCP
+            out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(socket.getInputStream());
 
-            // Gửi phản hồi dạng text về client
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            // Đăng ký nhận thông báo real-time
+            auctionNotifier.addObserver(this);
 
-            // Nhận yêu cầu từ client
-            String command = in.readLine();
-            System.out.println("Khách hàng yêu cầu: " + command);
+            Object incomingData;
+            while ((incomingData = in.readObject()) != null) {
+                if (incomingData instanceof String) {
+                    String command = (String) incomingData;
+                    System.out.println("[Server] Nhận lệnh từ client " + socket.getInetAddress() + ": " + command);
+                    handleCommand(command);
+                }
+            }
+        } catch (EOFException e) {
+            System.out.println("[Server] Client " + socket.getInetAddress() + " ngắt kết nối.");
+        } catch (Exception e) {
+            System.out.println("[Server] Lỗi kết nối với client: " + e.getMessage());
+        } finally {
+            cleanup();
+        }
+    }
 
+    private void handleCommand(String command) {
+        try {
             if ("VIEW_ITEMS".equals(command)) {
-                // Chức năng này để xử lý sau
-                out.println("FAIL|Chuc nang VIEW_ITEMS chua duoc xu ly");
+                handleViewItems();
 
-            } else if (command != null && command.startsWith("LOGIN")) {
-                // Client gửi: LOGIN|username|password
-                String[] parts = command.split("\\|");
+            } else if (command.startsWith("LOGIN")) {
+                handleLogin(command);
 
-                if (parts.length == 3) {
-                    String username = parts[1];
-                    String password = parts[2];
+            } else if (command.startsWith("REGISTER")) {
+                handleRegister(command);
 
-                    org.example.dao.UserDAO userDAO = new org.example.dao.UserDAO();
-
-                    // Gọi DAO để kiểm tra tài khoản trong database
-                    org.example.model.User loggedInUser = userDAO.login(username, password);
-
-                    if (loggedInUser != null) {
-                        out.println("SUCCESS|Đăng nhập thành công, chào mừng! "
-                                + loggedInUser.getRole() + " " + loggedInUser.getUsername());
-                    } else {
-                        out.println("FAIL|Sai tài khoản hoặc mật khẩu!");
-                    }
-
-                } else {
-                    out.println("FAIL|Sai cú pháp đăng nhập. Mẫu chuẩn: LOGIN|user|pass");
-                }
-
-            } else if (command != null && command.startsWith("REGISTER")) {
-                // Client gửi: REGISTER|username|password|role
-                String[] parts = command.split("\\|");
-
-                if (parts.length == 4) {
-                    String username = parts[1];
-                    String password = parts[2];
-                    String role = parts[3];
-
-                    org.example.dao.UserDAO userDAO = new org.example.dao.UserDAO();
-
-                    // Gọi DAO để lưu tài khoản mới vào database
-                    boolean isRegistered = userDAO.registerUser(username, password, role);
-
-                    if (isRegistered) {
-                        out.println("SUCCESS|Đã tạo thành công tài khoản: " + username);
-                    } else {
-                        out.println("FAIL|Tên đăng nhập này đã tồn tại!");
-                    }
-
-                } else {
-                    out.println("FAIL|Sai cú pháp đăng kí. Mẫu chuẩn: REGISTER|user|pass|role");
-                }
-
-            } else if (command != null && command.startsWith("BID")) {
-                // Client gửi: BID|username|price
-                String[] parts = command.split("\\|");
-
-                if (parts.length == 3) {
-                    String username = parts[1];
-
-                    try {
-                        double amount = Double.parseDouble(parts[2]);
-
-                        System.out.println("User " + username + " đặt giá: " + amount);
-
-                        /*
-                         * Tạm thời server chỉ xác nhận đã nhận BID.
-                         * Giá, người dẫn đầu và lịch sử bid hiện vẫn được UI lưu tạm
-                         * bằng AuctionDataStore.
-                         */
-                        out.println("SUCCESS|Đã nhận giá đặt của " + username + ": " + amount + "$");
-
-                    } catch (NumberFormatException e) {
-                        out.println("FAIL|Gía dặt không hợp lệ");
-                    }
-
-                } else {
-                    out.println("FAIL|Sai cú pháp đặt giá. Mẫu chuẩn: BID|user|price");
-                }
+            } else if (command.startsWith("BID")) {
+                handleBid(command);
 
             } else {
-                out.println("FAIL|Server không hiểu lệnh này!");
+                sendResponse("FAIL|Không hiểu lệnh: " + command);
+            }
+        } catch (IOException e) {
+            System.err.println("[Server] Lỗi gửi response: " + e.getMessage());
+        }
+    }
+
+    private void handleViewItems() throws IOException {
+        List<Auction> auctions = auctionService.getActiveAuctionsList();
+        StringBuilder sb = new StringBuilder("AUCTIONS");
+        for (Auction a : auctions) {
+            sb.append("|").append(a.getAuctionId())
+              .append(",").append(a.getCurrentHighestBid())
+              .append(",").append(a.getStatus());
+        }
+        sendResponse(sb.toString());
+    }
+
+    private void handleLogin(String command) throws IOException {
+        String[] parts = command.split("\\|");
+        if (parts.length == 3) {
+            User user = userService.login(parts[1], parts[2]);
+            if (user != null) {
+                loggedInUser = user;
+                sendResponse("SUCCESS|Chào mừng " + user.getUsername() + "! Role: " + user.getRole());
+            } else {
+                sendResponse("FAIL|Sai tài khoản hoặc mật khẩu");
+            }
+        } else {
+            sendResponse("FAIL|Sai format. Dùng: LOGIN|username|password");
+        }
+    }
+
+    private void handleRegister(String command) throws IOException {
+        String[] parts = command.split("\\|");
+        if (parts.length == 4) {
+            boolean ok = userService.register(parts[1], parts[2], parts[3]);
+            sendResponse(ok ? "SUCCESS|Đăng ký thành công" : "FAIL|Username đã tồn tại");
+        } else {
+            sendResponse("FAIL|Sai format. Dùng: REGISTER|username|password|role");
+        }
+    }
+
+    private void handleBid(String command) throws IOException {
+        // Format: BID|auctionId|amount
+        String[] parts = command.split("\\|");
+        if (parts.length != 3) {
+            sendResponse("FAIL|Sai format. Dùng: BID|auctionId|amount");
+            return;
+        }
+
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi đặt giá");
+            return;
+        }
+
+        try {
+            String auctionId = parts[1];
+            double amount = Double.parseDouble(parts[2]);
+            String bidderName = loggedInUser.getUsername();
+
+            // FIX BUG 5: Chỉ gọi placeBid() — broadcast đã được thực hiện BÊN TRONG AuctionService.
+            //            Không tạo thêm event hay gọi broadcast() ở đây nữa.
+            boolean success = auctionService.placeBid(auctionId, bidderName, amount);
+
+            if (success) {
+                // Ghi lịch sử bid vào DB (dùng userId thật)
+                bidDAO.placeBid(Integer.parseInt(auctionId), loggedInUser.getId(), amount);
+                sendResponse("SUCCESS|Đặt giá " + amount + " thành công!");
+            } else {
+                sendResponse("FAIL|Đặt giá thất bại. Giá quá thấp hoặc phiên đã đóng.");
             }
 
-            // Đóng kết nối sau khi xử lý xong một request
-            socket.close();
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|Số tiền không hợp lệ");
+        }
+    }
 
+    /** Nhận event real-time từ AuctionNotifier, đẩy ngay về client */
+    @Override
+    public void onBidUpdate(BidUpdateEvent event) {
+        try {
+            out.writeObject(event);
+            out.flush();
+        } catch (IOException e) {
+            System.out.println("[Notifier] Không gửi được event → tự động remove client.");
+            auctionNotifier.removeObserver(this);
+        }
+    }
+
+    private void sendResponse(String message) throws IOException {
+        out.writeObject(message);
+        out.flush();
+    }
+
+    private void cleanup() {
+        try {
+            auctionNotifier.removeObserver(this);
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

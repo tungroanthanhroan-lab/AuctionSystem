@@ -1,25 +1,39 @@
 package org.example;
 
-import org.example.dao.UserDAO;
-import org.example.model.User;
+import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.image.Image;
+import javafx.stage.Stage;
 
-public class Main {
-    public static void main(String[] args) {
-        UserDAO userDAO = new UserDAO();
+public class Main extends Application {
 
-        // 1. Tạo bảng (nếu chưa có)
-        userDAO.createTableIfNotExists();
+    @Override
+    public void start(Stage stage) throws Exception {
+        FXMLLoader loader = new FXMLLoader(
+                getClass().getResource("/views/login-view.fxml")
+        );
 
-        // 2. Đăng ký thử 1 user
-        boolean isRegistered = userDAO.registerUser("admin", "123456", "ADMIN");
-        if (isRegistered) System.out.println("Đăng ký thành công!");
+        Parent root = loader.load();
 
-        // 3. Đăng nhập thử
-        User user = userDAO.login("admin", "123456");
-        if (user != null) {
-            System.out.println("Chào mừng: " + user.getUsername() + " với quyền: " + user.getRole());
-        } else {
-            System.out.println("Sai tài khoản hoặc mật khẩu!");
+        Scene scene = new Scene(root, 560, 560);
+
+        stage.setTitle("Auction System - Login");
+
+        try {
+            stage.getIcons().add(
+                    new Image(getClass().getResourceAsStream("/images/app-icon.png"))
+            );
+        } catch (Exception e) {
+            System.out.println("Không tìm thấy app icon, dùng icon mặc định.");
         }
+
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
     }
 }
