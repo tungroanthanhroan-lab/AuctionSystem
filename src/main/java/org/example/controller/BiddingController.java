@@ -131,6 +131,7 @@ public class BiddingController {
     @FXML
     public void handleDatGia() {
         String inputStr = txtNhapGia.getText();
+
         // Nếu phiên đã đóng thì không cho đặt giá nữa
         if (!phienDangMo) {
             hienThiPopup(Alert.AlertType.ERROR,
@@ -138,46 +139,78 @@ public class BiddingController {
                     "Phiên đấu giá đã kết thúc, bạn không thể đặt giá nữa!");
             return;
         }
-        //kiem tra neu ko nhap j or nhap toan dau cach ma van bam nut dat gia
+
+        // Kiểm tra nếu không nhập gì hoặc nhập toàn dấu cách mà vẫn bấm nút đặt giá
         if (inputStr == null || inputStr.trim().isEmpty()) {
-            hienThiPopup(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa đặt giá tiền!");
+            hienThiPopup(Alert.AlertType.WARNING,
+                    "Cảnh báo",
+                    "Bạn chưa đặt giá tiền!");
             return;
         }
+
         try {
-            double giaDat = Double.parseDouble(inputStr);
-            //bat loi dat gia thap hon gia hien tai
-            if (giaDat <= giaHienTai){
-                hienThiPopup(Alert.AlertType.ERROR, "Lỗi đặt giá", "Phải đặt giá cao hơn "+giaHienTai+"$");
-            } else {
-                // Tạo message gửi lên server
+            double giaDat = Double.parseDouble(inputStr.trim());
 
-                String username = AppSession.getCurrentUsername();
-                String message = "BID|" + username + "|" + giaDat;
+            // Bắt lỗi đặt giá thấp hơn hoặc bằng giá hiện tại
+            if (giaDat <= giaHienTai) {
+                hienThiPopup(Alert.AlertType.ERROR,
+                        "Lỗi đặt giá",
+                        "Phải đặt giá cao hơn " + giaHienTai + "$");
+                return;
+            }
 
-                // Gửi giá đặt lên server thông qua NetworkService
-                String response = networkService.sendMessage(message);
+            String username = AppSession.getCurrentUsername();
 
-                System.out.println("Server trả về: " + response);
+            /*
+             * Backend mới cần format:
+             * BID|auctionId|amount
+             *
+             * Tạm thời auctionName đang có dạng:
+             * "2 - Laptop Gaming"
+             * nên lấy auctionId bằng phần trước dấu " - "
+             */
+            String auctionId = auctionName.split(" - ")[0].trim();
 
-                // Nếu không kết nối được server thì báo lỗi
-                if (response.startsWith("ERROR")) {
-                    hienThiPopup(Alert.AlertType.ERROR, "Lỗi kết nối", "Không kết nối được tới server!");
-                    return;
-                }
+            String message = "BID|" + auctionId + "|" + giaDat;
 
+            // Gửi giá đặt lên server thông qua NetworkService
+            String response = networkService.sendMessage(message);
+
+            System.out.println("Server trả về: " + response);
+
+            // Nếu không kết nối được server thì báo lỗi
+            if (response.startsWith("ERROR")) {
+                hienThiPopup(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        "Không kết nối được tới server!");
+                return;
+            }
+
+            /*
+             * Nếu server từ chối bid thì KHÔNG cập nhật UI.
+             * Tránh lỗi popup báo FAIL nhưng giá vẫn đổi.
+             */
+            if (response.startsWith("FAIL")) {
+                hienThiPopup(Alert.AlertType.WARNING,
+                        "Server phản hồi",
+                        response);
+                return;
+            }
+
+            /*
+             * Chỉ khi server trả SUCCESS mới cập nhật:
+             * - giá hiện tại
+             * - người dẫn đầu
+             * - lịch sử đặt giá
+             */
+            if (response.startsWith("SUCCESS")) {
                 giaHienTai = giaDat;
 
-                    // Cập nhật dữ liệu tạm:
-                // - giá hiện tại
-                // - người dẫn đầu
-                // - lịch sử đặt giá
                 AuctionDataStore.updateBid(auctionName, giaDat, username);
 
                 lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + "$");
                 lblNguoiDanDau.setText("Người dẫn đầu: " + username);
 
-                // Load lại toàn bộ lịch sử từ AuctionDataStore
-                // để khi quay lại phiên, lịch sử vẫn còn
                 listLichSuBid.getItems().clear();
                 listLichSuBid.getItems().addAll(
                         AuctionDataStore.getBidHistory(auctionName)
@@ -185,11 +218,23 @@ public class BiddingController {
 
                 txtNhapGia.clear();
 
-                hienThiPopup(Alert.AlertType.INFORMATION, "Server phản hồi", response);
+                hienThiPopup(Alert.AlertType.INFORMATION,
+                        "Server phản hồi",
+                        response);
+
+                return;
             }
-        } catch (NumberFormatException e){
-            //lỗi nhập liệu của người dùng(một ngàn thay vì 1000
-            hienThiPopup(Alert.AlertType.ERROR, "lỗi nhập liệu", "Vui lòng chỉ nhập số (ví dụ:1000), không nhập chữ!");
+
+            // Trường hợp server trả response lạ
+            hienThiPopup(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
+
+        } catch (NumberFormatException e) {
+            // Lỗi nhập liệu của người dùng: chữ, ký tự, v.v.
+            hienThiPopup(Alert.AlertType.ERROR,
+                    "Lỗi nhập liệu",
+                    "Vui lòng chỉ nhập số (ví dụ: 1000), không nhập chữ!");
         }
     }
     //----chuẩn bị cho realtime----

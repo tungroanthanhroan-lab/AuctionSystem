@@ -1,15 +1,16 @@
 package org.example.controller;
 
-import org.example.service.AuctionDataStore;
-import javafx.scene.input.KeyCode;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ListView;
-import javafx.stage.Stage;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.stage.Stage;
+import org.example.service.NetworkService;
+
 import java.io.IOException;
 
 public class AuctionListController {
@@ -18,23 +19,18 @@ public class AuctionListController {
     @FXML
     private ListView<String> listAuctions;
 
+    private final NetworkService networkService = new NetworkService();
+
     /**
      * Hàm initialize() tự động chạy sau khi file FXML được load.
-     * Tạm thời hard-code danh sách phiên đấu giá để demo giao diện.
-     * Sau này có thể thay bằng dữ liệu lấy từ server/database.
+     * Lấy danh sách phiên đấu giá từ server thay vì AuctionDataStore local.
      */
     @FXML
     public void initialize() {
         // Xóa danh sách cũ trước khi thêm lại dữ liệu
         listAuctions.getItems().clear();
 
-        // Lấy danh sách phiên đấu giá từ AuctionDataStore
-        // để nếu giá đã được cập nhật thì list cũng hiện giá mới
-        AuctionDataStore.getCurrentPrices().forEach((auctionName, price) -> {
-            listAuctions.getItems().add(
-                    auctionName + " - Giá hiện tại: " + price + "$"
-            );
-        });
+        loadAuctionsFromServer();
 
         // Khi chọn một phiên và bấm Enter thì mở màn hình đấu giá
         listAuctions.setOnKeyPressed(event -> {
@@ -43,6 +39,7 @@ public class AuctionListController {
                 event.consume();
             }
         });
+
         // Khi double click chuột trái vào một phiên đấu giá thì mở màn hình đấu giá
         listAuctions.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
@@ -50,6 +47,83 @@ public class AuctionListController {
                 event.consume();
             }
         });
+    }
+
+    /**
+     * Lấy danh sách phiên đấu giá đang mở từ server.
+     *
+     * Server hiện trả format:
+     * AUCTIONS|auctionId,currentHighestBid,status|auctionId,currentHighestBid,status
+     */
+    private void loadAuctionsFromServer() {
+        String response = networkService.sendMessage("VIEW_ITEMS");
+
+        System.out.println("Server trả về danh sách phiên: " + response);
+
+        if (response == null || response.trim().isEmpty()) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Server không trả về danh sách phiên đấu giá!");
+            return;
+        }
+
+        if (response.startsWith("ERROR")) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi kết nối",
+                    "Không lấy được danh sách phiên đấu giá từ server!");
+            return;
+        }
+
+        if (response.startsWith("FAIL")) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Server phản hồi",
+                    response);
+            return;
+        }
+
+        if (!response.startsWith("AUCTIONS")) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
+            return;
+        }
+
+        String[] parts = response.split("\\|");
+
+        if (parts.length == 1) {
+            listAuctions.getItems().add("Không có phiên đấu giá nào đang mở");
+            return;
+        }
+
+        for (int i = 1; i < parts.length; i++) {
+            String auctionData = parts[i];
+
+            String[] fields = auctionData.split(",");
+
+            if (fields.length < 3) {
+                continue;
+            }
+
+            String auctionId = fields[0].trim();
+            String currentPrice = fields[1].trim();
+            String status = fields[2].trim();
+
+            /*
+             * BiddingController sẽ lấy auctionId bằng phần trước dấu " - ".
+             * Ví dụ: "1 - Phiên đấu giá - Giá hiện tại: 0.0$ - Trạng thái: OPEN"
+             * auctionId = "1"
+             */
+            String displayText = auctionId
+                    + " - Phiên đấu giá"
+                    + " - Giá hiện tại: " + currentPrice + "$"
+                    + " - Trạng thái: " + status;
+
+            listAuctions.getItems().add(displayText);
+        }
+
+        if (listAuctions.getItems().isEmpty()) {
+            listAuctions.getItems().add("Không có phiên đấu giá nào đang mở");
+        }
     }
 
     /**
@@ -70,6 +144,13 @@ public class AuctionListController {
             return;
         }
 
+        if (selectedAuction.startsWith("Không có phiên")) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Cảnh báo",
+                    "Hiện chưa có phiên đấu giá nào để tham gia!");
+            return;
+        }
+
         try {
             // Load màn hình đấu giá trực tiếp
             FXMLLoader loader = new FXMLLoader(
@@ -77,7 +158,8 @@ public class AuctionListController {
             );
 
             Parent root = loader.load();
-            //// Truyền phiên đấu giá đang chọn sang BiddingController
+
+            // Truyền phiên đấu giá đang chọn sang BiddingController
             BiddingController biddingController = loader.getController();
             biddingController.setAuctionInfo(selectedAuction);
 
@@ -98,7 +180,8 @@ public class AuctionListController {
             e.printStackTrace();
         }
     }
-    //hàm để quay lại màn hình chính
+
+    // Hàm để quay lại màn hình chính
     @FXML
     private void handleBackToHome() {
         try {

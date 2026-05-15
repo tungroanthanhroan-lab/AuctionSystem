@@ -1,8 +1,7 @@
 package org.example.service;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 
 public class NetworkService {
@@ -10,34 +9,63 @@ public class NetworkService {
     private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 8080;
 
-    /*
-     * Gửi một message từ client JavaFX sang server.
-     * Ví dụ:
-     * LOGIN|username|password
-     * REGISTER|username|password|role
-     * BID|username|price
-     */
-    public String sendMessage(String message) {
-        try (
-                Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
-                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(socket.getInputStream())
-                )
-        ) {
-            out.println(message);
+    private static Socket socket;
+    private static ObjectOutputStream out;
+    private static ObjectInputStream in;
 
-            String response = in.readLine();
+    private static void connectIfNeeded() throws Exception {
+        if (socket == null || socket.isClosed()) {
+            socket = new Socket(SERVER_HOST, SERVER_PORT);
 
-            if (response == null) {
-                return "ERROR|Server không phản hồi!";
+            out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+
+            in = new ObjectInputStream(socket.getInputStream());
+        }
+    }
+
+    public synchronized String sendMessage(String message) {
+        try {
+            connectIfNeeded();
+
+            out.writeObject(message);
+            out.flush();
+
+            Object response = in.readObject();
+
+            if (response instanceof String) {
+                return (String) response;
             }
 
-            return response;
+            return "ERROR|Server trả về dữ liệu không hợp lệ!";
 
         } catch (Exception e) {
             e.printStackTrace();
+            closeConnection();
             return "ERROR|Không kết nối được tới server!";
+        }
+    }
+
+    public static void closeConnection() {
+        try {
+            if (in != null) {
+                in.close();
+            }
+
+            if (out != null) {
+                out.close();
+            }
+
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            in = null;
+            out = null;
+            socket = null;
         }
     }
 }

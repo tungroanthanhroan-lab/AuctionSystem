@@ -20,14 +20,14 @@ public class CreateAuctionController {
     private TextField txtStartPrice;
 
     /*
-     * Hàm chạy khi Seller bấm nút TẠO PHIÊN.
+     * Hàm chạy khi người dùng bấm nút TẠO PHIÊN.
      *
      * Luồng xử lý:
      * 1. Lấy tên sản phẩm và giá khởi điểm.
      * 2. Kiểm tra dữ liệu nhập.
      * 3. Thêm phiên mới vào AuctionDataStore.
      * 4. Hiện popup tạo thành công.
-     * 5. Quay lại Seller Home.
+     * 5. Quay lại Home.
      */
     @FXML
     private void handleCreateAuction() {
@@ -71,7 +71,7 @@ public class CreateAuctionController {
                     "Thành công",
                     "Đã tạo phiên đấu giá: " + fullAuctionName);
 
-            handleBackToSellerHome();
+            handleBackToHome();
 
         } catch (NumberFormatException e) {
             showAlert(Alert.AlertType.ERROR,
@@ -81,13 +81,13 @@ public class CreateAuctionController {
     }
 
     /*
-     * Quay lại màn Seller Home.
+     * Quay lại màn Home.
      */
     @FXML
-    private void handleBackToSellerHome() {
+    private void handleBackToHome() {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/views/seller-home-view.fxml")
+                    getClass().getResource("/views/home-view.fxml")
             );
 
             Parent root = loader.load();
@@ -97,15 +97,24 @@ public class CreateAuctionController {
             double currentHeight = stage.getHeight();
 
             stage.setScene(new Scene(root, currentWidth, currentHeight));
-            stage.setTitle("Trang người bán");
+            stage.setTitle("Auction System - Home");
             stage.show();
 
         } catch (IOException e) {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
-                    "Không quay lại được trang người bán!");
+                    "Không quay lại được màn hình chính!");
             e.printStackTrace();
         }
+    }
+
+    /*
+     * Giữ lại hàm cũ để nếu FXML hoặc code nào vẫn gọi handleBackToSellerHome
+     * thì vẫn quay về Home, tránh lỗi.
+     */
+    @FXML
+    private void handleBackToSellerHome() {
+        handleBackToHome();
     }
 
     /*

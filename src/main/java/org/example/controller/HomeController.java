@@ -64,7 +64,7 @@ public class HomeController {
     private void handleLogout() {
         try {
             // Xóa username đang đăng nhập
-            AppSession.setCurrentUsername(null);
+            AppSession.clear();
 
             // Load lại màn hình đăng nhập
             FXMLLoader loader = new FXMLLoader(

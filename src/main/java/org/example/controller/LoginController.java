@@ -125,8 +125,7 @@ public class LoginController {
 
             showAlert(Alert.AlertType.INFORMATION,
                     "Đăng nhập thành công",
-                    layNoiDungPhanHoi(response));
-
+                    "Chào mừng " + username.trim() +" ! ");
             System.out.println("Dang mo man hinh Home...");
             openHomeView();
 
