@@ -62,10 +62,6 @@ public class AuctionTest {
                 notifier);
     }
 
-    @AfterEach
-    public void tearDown() {
-        notifier.shutdown();
-    }
 
     // ════════════════════════════════════════════════════════════════
     // Nhóm 1: Đặt giá HỢP LỆ
