@@ -30,7 +30,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
     private final AuctionNotifier auctionNotifier;
     private final BidDAO bidDAO;
 
-    // Lưu user đang đăng nhập — dùng để ghi bid đúng userId vào DB
+    // Lưu thông tin người dùng sau khi đăng nhập thành công để xử lý các lệnh BID
     private User loggedInUser;
 
     public ClientHandler(Socket socket, UserService userService,
@@ -55,6 +55,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
             auctionNotifier.addObserver(this);
 
             Object incomingData;
+            // Vòng lặp nhận dữ liệu liên tục từ Client
             while ((incomingData = in.readObject()) != null) {
                 if (incomingData instanceof String) {
                     String command = (String) incomingData;
@@ -67,10 +68,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
         } catch (Exception e) {
             System.out.println("[Server] Lỗi kết nối với client: " + e.getMessage());
         } finally {
-            cleanup();
+            cleanup(); // Đảm bảo đóng socket và gỡ observer khi kết thúc
         }
     }
-
+    /**
+     * Phân tích lệnh (Protocol) gửi từ Client và điều hướng xử lý
+     */
     private void handleCommand(String command) {
         try {
             if ("VIEW_ITEMS".equals(command)) {
@@ -92,7 +95,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
             System.err.println("[Server] Lỗi gửi response: " + e.getMessage());
         }
     }
-
+    /** Gửi danh sách các phiên đấu giá đang diễn ra cho Client */
     private void handleViewItems() throws IOException {
         List<Auction> auctions = auctionService.getActiveAuctionsList();
         StringBuilder sb = new StringBuilder("AUCTIONS");
@@ -103,7 +106,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
         sendResponse(sb.toString());
     }
-
+    /** Xử lý đăng nhập và lưu trạng thái session vào loggedInUser */
     private void handleLogin(String command) throws IOException {
         String[] parts = command.split("\\|");
         if (parts.length == 3) {
@@ -128,7 +131,10 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("FAIL|Sai format. Dùng: REGISTER|username|password|role");
         }
     }
-
+    /**
+     * Xử lý lệnh đặt giá từ Client.
+     * Kiểm tra đăng nhập và ghi log vào Database nếu đặt giá thành công.
+     */
     private void handleBid(String command) throws IOException {
         // Format: BID|auctionId|amount
         String[] parts = command.split("\\|");
@@ -175,12 +181,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
             auctionNotifier.removeObserver(this);
         }
     }
-
+    /** Gửi thông báo dạng chuỗi văn bản về Client */
     private void sendResponse(String message) throws IOException {
         out.writeObject(message);
         out.flush();
     }
-
+    /** Dọn dẹp tài nguyên khi Client ngắt kết nối */
     private void cleanup() {
         try {
             auctionNotifier.removeObserver(this);
