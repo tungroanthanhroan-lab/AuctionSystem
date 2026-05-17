@@ -1,6 +1,6 @@
 package org.example.observer;
 
-import org.example.service.AuctionObserver;
+import org.example.observer.AuctionObserver;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -11,12 +11,12 @@ public class AuctionNotifier {
     private final List<AuctionObserver> observes = new CopyOnWriteArrayList<>();
 
     //fronend qua luong socket xin nhan thong bao
-    public void addObserve(AuctionObserver observe) {
+    public void addObserver(AuctionObserver observe) {
         observes.add(observe);
     }
 
     //frontend roi khoi phien dau gia
-    public void removeObserve(AuctionObserver observe) {
+    public void removeObserver(AuctionObserver observe) {
         observes.remove(observe);
     }
 
