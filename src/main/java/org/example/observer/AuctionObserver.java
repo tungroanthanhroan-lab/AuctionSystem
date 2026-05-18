@@ -1,6 +1,6 @@
 package org.example.observer;
 
 public interface AuctionObserver {
-    //ham nay se duoc goi khi cap nhat gia moi
+    // Hàm này sẽ được gọi khi cập nhật giá mới
     void onBidUpdate(BidUpdateEvent event);
 }

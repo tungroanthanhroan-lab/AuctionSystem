@@ -40,7 +40,7 @@ public class AuctionDAO {
      */
     public boolean startAuction(int itemId, String endTime) {
         String sql = "INSERT INTO auctions(item_id, start_time, end_time, status, version) "
-                + "VALUES(?, datetime('now'), ?, 'OPEN', 0)";
+                   + "VALUES(?, datetime('now'), ?, 'OPEN', 0)";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, itemId);
@@ -84,16 +84,12 @@ public class AuctionDAO {
     /**
      * FIX BUG 1: Thêm phương thức này — AuctionService.placeBid() gọi nó.
      * Cập nhật giá đấu theo Optimistic Locking: chỉ thành công nếu version khớp.
-     *
-     * SQL: UPDATE auctions SET current_highest_bid=?, current_leader=?, version=version+1
-     *      WHERE id=? AND version=?
-     * Nếu version đã bị người khác tăng trước → rowsAffected = 0 → trả về false.
      */
     public boolean updateBidWithOptimisticLock(String auctionId, String bidderName,
                                                double amount, int expectedVersion) {
         String sql = "UPDATE auctions "
-                + "SET current_highest_bid = ?, current_leader = ?, version = version + 1 "
-                + "WHERE id = ? AND version = ?";
+                   + "SET current_highest_bid = ?, current_leader = ?, version = version + 1 "
+                   + "WHERE id = ? AND version = ?";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setDouble(1, amount);
@@ -101,7 +97,7 @@ public class AuctionDAO {
             pstmt.setString(3, auctionId);
             pstmt.setInt(4, expectedVersion);
             int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0; // 0 nghĩa là version đã bị thay đổi trước đó (conflict)
+            return rowsAffected > 0; 
         } catch (SQLException e) {
             System.err.println("[DB] Lỗi updateBidWithOptimisticLock: " + e.getMessage());
             e.printStackTrace();
@@ -125,8 +121,43 @@ public class AuctionDAO {
     }
 
     /**
+     * Tạo phiên đấu giá mới — INSERT vào DB và set generated ID trở lại Auction object.
+     * Giữ lại từ nhánh feature/rebuild-models.
+     */
+    public boolean insertAuction(Auction auction) {
+        String sql = "INSERT INTO auctions(item_id, start_time, end_time, status, current_highest_bid, version) "
+                   + "VALUES(?, ?, ?, 'OPEN', ?, 0)";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            int itemId = (auction.getItem() != null) ? auction.getItem().getId() : 0;
+            pstmt.setInt(1, itemId);
+            pstmt.setString(2, auction.getStartTime() != null
+                    ? auction.getStartTime().toString() : java.time.LocalDateTime.now().toString());
+            pstmt.setString(3, auction.getEndTime() != null
+                    ? auction.getEndTime().toString() : "");
+            pstmt.setDouble(4, auction.getCurrentHighestBid());
+
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        String generatedId = String.valueOf(generatedKeys.getLong(1));
+                        auction.setAuctionId(generatedId);
+                        System.out.println("[DB] Đã tạo phiên đấu giá mới — id=" + generatedId);
+                    }
+                }
+                return true;
+            }
+            return false;
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi insertAuction: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
      * Lấy danh sách các phiên đấu giá đang MỞ (tên cũ giữ lại để tương thích).
-     * FIX BUG 13: Dùng DatabaseConnection Singleton.
      */
     public List<Auction> getActiveAuctions() {
         return getAllOpenAuctions();

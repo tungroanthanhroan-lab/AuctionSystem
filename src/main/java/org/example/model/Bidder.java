@@ -15,7 +15,7 @@ public class Bidder extends User {
         this.balance = balance;
     }
 
-    // Constructor tiện lợi — dùng khi chỉ có username
+    // Constructor tiện lợi — dùng trong AuctionService / Client khi chỉ có username
     public Bidder(String username) {
         super(0, username, "", "BIDDER");
         this.balance = 0;
@@ -27,6 +27,11 @@ public class Bidder extends User {
         this.balance = 0;
     }
 
-    public double getBalance() { return balance; }
-    public void setBalance(double balance) { this.balance = balance; }
+    public double getBalance() { 
+        return balance; 
+    }
+    
+    public void setBalance(double balance) { 
+        this.balance = balance; 
+    }
 }

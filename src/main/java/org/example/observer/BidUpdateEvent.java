@@ -16,16 +16,36 @@ public class BidUpdateEvent implements Serializable {
         this.timestamp        = timestamp;
     }
 
-    public String getAuctionId() { return auctionId; }
-    public void setAuctionId(String auctionId) { this.auctionId = auctionId; }
+    public String getAuctionId() { 
+        return auctionId; 
+    }
+    
+    public void setAuctionId(String auctionId) { 
+        this.auctionId = auctionId; 
+    }
 
-    public double getNewHighestAmount() { return newHighestAmount; }
-    public void setNewHighestAmount(double v) { this.newHighestAmount = v; }
+    public double getNewHighestAmount() { 
+        return newHighestAmount; 
+    }
+    
+    public void setNewHighestAmount(double newHighestAmount) { 
+        this.newHighestAmount = newHighestAmount; 
+    }
 
-    // FIX: trả String (username) thay vì Bidder để AuctionClient in được
-    public String getBidder() { return bidder != null ? bidder.getUsername() : ""; }
-    public void setBidder(Bidder bidder) { this.bidder = bidder; }
+    // FIX: trả String (username) thay vì Bidder nguyên bản để AuctionClient dễ dàng in ra màn hình
+    public String getBidder() { 
+        return bidder != null ? bidder.getUsername() : ""; 
+    }
+    
+    public void setBidder(Bidder bidder) { 
+        this.bidder = bidder; 
+    }
 
-    public String getTimestamp() { return timestamp; }
-    public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
+    public String getTimestamp() { 
+        return timestamp; 
+    }
+    
+    public void setTimestamp(String timestamp) { 
+        this.timestamp = timestamp; 
+    }
 }

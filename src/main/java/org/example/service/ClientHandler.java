@@ -3,7 +3,6 @@ package org.example.service;
 import org.example.dao.BidDAO;
 import org.example.model.Auction;
 import org.example.model.User;
-import org.example.model.Bidder;
 import org.example.observer.AuctionNotifier;
 import org.example.observer.AuctionObserver;
 import org.example.observer.BidUpdateEvent;
@@ -12,25 +11,16 @@ import java.io.*;
 import java.net.Socket;
 import java.util.List;
 
-/**
- * Xử lý một client kết nối — chạy trên Thread riêng.
- * Implements AuctionObserver để nhận thông báo real-time từ AuctionNotifier.
- *
- * FIX BUG 8: Đồng nhất protocol — dùng ObjectOutputStream/ObjectInputStream
- *            nhất quán với cách server ghi dữ liệu.
- * FIX BUG 5: Bỏ đoạn broadcast thừa trong case BID — AuctionService đã broadcast bên trong.
- */
 public class ClientHandler implements Runnable, AuctionObserver {
     private final Socket socket;
     private ObjectOutputStream out;
     private ObjectInputStream in;
-
     private final UserService userService;
     private final AuctionService auctionService;
     private final AuctionNotifier auctionNotifier;
     private final BidDAO bidDAO;
 
-    // Lưu thông tin người dùng sau khi đăng nhập thành công để xử lý các lệnh BID
+    // Lưu thông tin người dùng đăng nhập để ghi log bid đúng userId
     private User loggedInUser;
 
     public ClientHandler(Socket socket, UserService userService,
@@ -53,9 +43,8 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
             // Đăng ký nhận thông báo real-time
             auctionNotifier.addObserver(this);
-
             Object incomingData;
-            // Vòng lặp nhận dữ liệu liên tục từ Client
+
             while ((incomingData = in.readObject()) != null) {
                 if (incomingData instanceof String) {
                     String command = (String) incomingData;
@@ -68,26 +57,22 @@ public class ClientHandler implements Runnable, AuctionObserver {
         } catch (Exception e) {
             System.out.println("[Server] Lỗi kết nối với client: " + e.getMessage());
         } finally {
-            cleanup(); // Đảm bảo đóng socket và gỡ observer khi kết thúc
+            cleanup();
         }
     }
-    /**
-     * Phân tích lệnh (Protocol) gửi từ Client và điều hướng xử lý
-     */
+
     private void handleCommand(String command) {
         try {
             if ("VIEW_ITEMS".equals(command)) {
                 handleViewItems();
-
             } else if (command.startsWith("LOGIN")) {
                 handleLogin(command);
-
             } else if (command.startsWith("REGISTER")) {
                 handleRegister(command);
-
             } else if (command.startsWith("BID")) {
                 handleBid(command);
-
+            } else if (command.startsWith("CREATE_AUCTION")) {
+                handleCreateAuction(command);
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
@@ -95,7 +80,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
             System.err.println("[Server] Lỗi gửi response: " + e.getMessage());
         }
     }
-    /** Gửi danh sách các phiên đấu giá đang diễn ra cho Client */
+
     private void handleViewItems() throws IOException {
         List<Auction> auctions = auctionService.getActiveAuctionsList();
         StringBuilder sb = new StringBuilder("AUCTIONS");
@@ -106,7 +91,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
         sendResponse(sb.toString());
     }
-    /** Xử lý đăng nhập và lưu trạng thái session vào loggedInUser */
+
     private void handleLogin(String command) throws IOException {
         String[] parts = command.split("\\|");
         if (parts.length == 3) {
@@ -131,12 +116,8 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("FAIL|Sai format. Dùng: REGISTER|username|password|role");
         }
     }
-    /**
-     * Xử lý lệnh đặt giá từ Client.
-     * Kiểm tra đăng nhập và ghi log vào Database nếu đặt giá thành công.
-     */
+
     private void handleBid(String command) throws IOException {
-        // Format: BID|auctionId|amount
         String[] parts = command.split("\\|");
         if (parts.length != 3) {
             sendResponse("FAIL|Sai format. Dùng: BID|auctionId|amount");
@@ -153,12 +134,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             double amount = Double.parseDouble(parts[2]);
             String bidderName = loggedInUser.getUsername();
 
-            // FIX BUG 5: Chỉ gọi placeBid() — broadcast đã được thực hiện BÊN TRONG AuctionService.
-            //            Không tạo thêm event hay gọi broadcast() ở đây nữa.
             boolean success = auctionService.placeBid(auctionId, bidderName, amount);
 
             if (success) {
-                // Ghi lịch sử bid vào DB (dùng userId thật)
                 bidDAO.placeBid(Integer.parseInt(auctionId), loggedInUser.getId(), amount);
                 sendResponse("SUCCESS|Đặt giá " + amount + " thành công!");
             } else {
@@ -170,7 +148,39 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
-    /** Nhận event real-time từ AuctionNotifier, đẩy ngay về client */
+    private void handleCreateAuction(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi tạo phiên đấu giá");
+            return;
+        }
+
+        if (!"ADMIN".equalsIgnoreCase(loggedInUser.getRole())) {
+            sendResponse("FAIL|Chỉ ADMIN mới được tạo phiên đấu giá");
+            return;
+        }
+
+        String[] parts = command.split("\\|");
+        if (parts.length != 4) {
+            sendResponse("FAIL|Sai format. Dùng: CREATE_AUCTION|itemId|startingPrice|endTime");
+            return;
+        }
+
+        try {
+            int itemId = Integer.parseInt(parts[1]);
+            double startingPrice = Double.parseDouble(parts[2]);
+            String endTime = parts[3];
+
+            boolean success = auctionService.createAuction(itemId, startingPrice, endTime);
+            if (success) {
+                sendResponse("SUCCESS|Phiên đấu giá đã được tạo thành công");
+            } else {
+                sendResponse("FAIL|Tạo phiên đấu giá thất bại. Kiểm tra itemId và endTime.");
+            }
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|itemId hoặc startingPrice không hợp lệ");
+        }
+    }
+
     @Override
     public void onBidUpdate(BidUpdateEvent event) {
         try {
@@ -181,12 +191,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
             auctionNotifier.removeObserver(this);
         }
     }
-    /** Gửi thông báo dạng chuỗi văn bản về Client */
+
     private void sendResponse(String message) throws IOException {
         out.writeObject(message);
         out.flush();
     }
-    /** Dọn dẹp tài nguyên khi Client ngắt kết nối */
+
     private void cleanup() {
         try {
             auctionNotifier.removeObserver(this);

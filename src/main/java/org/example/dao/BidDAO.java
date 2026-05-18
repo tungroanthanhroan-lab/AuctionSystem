@@ -39,7 +39,8 @@ public class BidDAO {
      */
     public boolean placeBid(int auctionId, int userId, double amount) {
         String sql = "INSERT INTO bids(auction_id, user_id, bid_amount, bid_time) "
-                + "VALUES(?, ?, ?, datetime('now'))";
+                   + "VALUES(?, ?, ?, datetime('now'))";
+        
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, auctionId);
