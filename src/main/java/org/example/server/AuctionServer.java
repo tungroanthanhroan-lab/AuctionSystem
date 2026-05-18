@@ -17,20 +17,21 @@ import java.util.concurrent.Executors;
 
 /**
  * Entry point của Auction Server.
- *
- * FIX BUG 4: Khởi tạo đầy đủ dependencies và truyền vào ClientHandler (4 tham số).
- * FIX BUG 10: Dùng ExecutorService (CachedThreadPool) thay vì new Thread() thủ công.
+ * * Đã resolve conflict thành công giữa nhánh allcode và rebuild-models:
+ * - Đảm bảo nạp đúng thứ tự DB schema trơn tru.
+ * - Inject chuẩn 5 tham số cho ClientHandler tương thích giao thức ObjectStream.
+ * - Giới hạn ThreadPool tối đa bảo vệ tài nguyên hệ thống kèm Shutdown Hook dọn dẹp bộ nhớ.
  */
 public class AuctionServer {
 
     private static final int PORT = 8080;
-    // Giới hạn tối đa 100 client đồng thời để bảo vệ tài nguyên
+    // Giới hạn tối đa 100 client đồng thời để bảo vệ tài nguyên hệ thống
     private static final int MAX_THREADS = 100;
 
     public static void main(String[] args) {
         System.out.println("=== Khởi động Auction Server ===");
 
-        // ── Khởi tạo DB schema ──
+        // 1. ── Khởi tạo DB schema theo đúng thứ tự liên kết Khóa ngoại ──
         UserDAO userDAO = new UserDAO();
         userDAO.createTableIfNotExists();
 
@@ -43,30 +44,34 @@ public class AuctionServer {
         BidDAO bidDAO = new BidDAO();
         bidDAO.createTable();
 
-        // ── Khởi tạo Services ──
+        // 2. ── Khởi tạo các thành phần điều hướng & thông báo (Services / Notifier) ──
         AuctionNotifier notifier = new AuctionNotifier();
         UserService userService = new UserService(userDAO);
         AuctionService auctionService = new AuctionService(auctionDAO, notifier);
 
-        // FIX BUG 10: ThreadPool có giới hạn, không tạo thread vô hạn
+        // [TÙY CHỌN] Nếu AuctionService của bạn có hàm load dữ liệu cũ từ DB lên RAM khi khởi động:
+        // auctionService.loadActiveAuctionsFromDB();
+
+        // 3. ── Quản lý Thread hiệu năng cao có giới hạn chống DoS ──
         ExecutorService clientPool = Executors.newFixedThreadPool(MAX_THREADS);
 
-        // Shutdown hook: dọn dẹp khi server bị tắt
+        // Shutdown hook: Đảm bảo giải phóng port và đóng kết nối an toàn khi tắt ứng dụng
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\n[Server] Đang tắt server...");
+            System.out.println("\n[Server] Đang tiến hành tắt server an toàn...");
             clientPool.shutdown();
             notifier.shutdown();
-            System.out.println("[Server] Server đã tắt sạch.");
+            System.out.println("[Server] Toàn bộ tài nguyên và Thread Pool đã được dọn dẹp sạch.");
         }));
 
+        // 4. ── Khởi chạy socket lắng nghe kết nối từ các Client ──
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-            System.out.println("[Server] Đang lắng nghe trên cổng " + PORT + "...");
+            System.out.println("[Server] Đang lắng nghe kết nối trên cổng " + PORT + "...");
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("[Server] Client mới kết nối: " + clientSocket.getInetAddress());
+                System.out.println("[Server] Client mới kết nối từ IP: " + clientSocket.getInetAddress());
 
-                // FIX BUG 7: Truyền đủ 5 tham số vào ClientHandler constructor
+                // Khởi tạo ClientHandler truyền chuẩn xác 5 tham số theo thiết kế mới của hệ thống
                 ClientHandler handler = new ClientHandler(
                         clientSocket,
                         userService,
@@ -75,12 +80,12 @@ public class AuctionServer {
                         bidDAO
                 );
 
-                // FIX BUG 10: Submit vào pool thay vì new Thread().start()
+                // Submit tác vụ vào pool quản lý thay vì tạo thread thủ công
                 clientPool.submit(handler);
             }
 
         } catch (IOException e) {
-            System.err.println("[Server] Lỗi: Cổng " + PORT + " có thể đã bị chiếm dụng!");
+            System.err.println("[Server] Lỗi nghiêm trọng: Cổng " + PORT + " có thể đã bị chiếm dụng hoặc không khả dụng!");
             e.printStackTrace();
         }
     }
