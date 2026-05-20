@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="org.example.controller.RegisterController"
+           stylesheets="@/styles/style.css"
+           prefWidth="560"
+           prefHeight="620">
+
+    <VBox alignment="CENTER"
+          spacing="16"
+          styleClass="page-container"
+          maxWidth="400"
+          prefHeight="520">
+
+        <Label text="Đăng ký tài khoản"
+               styleClass="title-label"/>
+
+        <Label text="Tạo tài khoản để tham gia hệ thống đấu giá"
+               styleClass="subtitle-label"
+               wrapText="true"
+               maxWidth="320"/>
+
+        <TextField fx:id="txtUsername"
+                   promptText="Tên tài khoản"
+                   prefWidth="260"
+                   prefHeight="42"/>
+
+        <PasswordField fx:id="txtPassword"
+                       promptText="Mật khẩu"
+                       prefWidth="260"
+                       prefHeight="42"/>
+
+        <PasswordField fx:id="txtConfirmPassword"
+                       promptText="Nhập lại mật khẩu"
+                       prefWidth="260"
+                       prefHeight="42"/>
+
+        <Button fx:id="btnRegister"
+                text="Đăng ký"
+                styleClass="primary-button"
+                defaultButton="true"
+                onAction="#handleRegister"/>
+
+        <Button fx:id="btnBackToLogin"
+                text="Quay lại đăng nhập"
+                styleClass="secondary-button"
+                onAction="#handleBackToLogin"/>
+
+    </VBox>
+
+</StackPane>

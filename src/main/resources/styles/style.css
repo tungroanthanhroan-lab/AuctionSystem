@@ -1,0 +1,99 @@
+.root {
+    -fx-font-family: "Segoe UI";
+    -fx-background-color: linear-gradient(to bottom right, #e0f2fe, #f8fafc);
+}
+
+.page-container {
+    -fx-background-color: white;
+    -fx-background-radius: 18;
+    -fx-padding: 70 35 70 35;
+    -fx-spacing: 18;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 18, 0.2, 0, 4);
+}
+
+.title-label {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1e293b;
+}
+
+.subtitle-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748b;
+}
+
+.text-field,
+.password-field,
+.combo-box {
+    -fx-pref-width: 260;
+    -fx-pref-height: 42;
+    -fx-min-height: 42;
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 1;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 14px;
+}
+
+.text-field:focused,
+.password-field:focused,
+.combo-box:focused {
+    -fx-border-color: #2563eb;
+    -fx-border-width: 1.5;
+}
+
+.primary-button {
+    -fx-pref-width: 260;
+    -fx-pref-height: 42;
+    -fx-background-color: #2563eb;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 12;
+    -fx-cursor: hand;
+}
+
+.primary-button:hover {
+    -fx-background-color: #1d4ed8;
+}
+
+.secondary-button {
+    -fx-pref-width: 260;
+    -fx-pref-height: 40;
+    -fx-background-color: #e2e8f0;
+    -fx-text-fill: #1e293b;
+    -fx-background-radius: 12;
+    -fx-cursor: hand;
+}
+
+.secondary-button:hover {
+    -fx-background-color: #cbd5e1;
+}
+
+.danger-button {
+    -fx-pref-width: 260;
+    -fx-pref-height: 40;
+    -fx-background-color: #ef4444;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 12;
+    -fx-cursor: hand;
+}
+
+.list-view {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: #cbd5e1;
+    -fx-background-color: white;
+}
+
+.status-open {
+    -fx-text-fill: #16a34a;
+    -fx-font-weight: bold;
+}
+
+.status-closed {
+    -fx-text-fill: #dc2626;
+    -fx-font-weight: bold;
+}
