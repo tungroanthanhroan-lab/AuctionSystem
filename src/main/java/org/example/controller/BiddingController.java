@@ -393,19 +393,16 @@ public class BiddingController {
                     "Chỉ Admin mới được đóng phiên đấu giá!");
             return;
         }
-        phienDangMo = false;
-        // Lưu trạng thái đóng để quay lại list rồi vào lại phiên vẫn đóng
-        AuctionDataStore.closeAuction(auctionName);
-        lblTrangThai.setText("Trạng thái: ĐÃ KẾT THÚC");
-        lblTrangThai.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
 
-        txtNhapGia.setDisable(true);
-        btnDatGia.setDisable(true);
-        btnDongPhien.setDisable(true);
-
+        /*
+         * Backend hiện chưa có command CLOSE_AUCTION.
+         * Vì vậy UI không tự đóng local nữa để tránh hiểu nhầm:
+         * - đóng local xong quay lại list vẫn thấy phiên đang mở
+         * - dữ liệu server/database không đổi
+         */
         hienThiPopup(Alert.AlertType.INFORMATION,
-                "Đóng phiên",
-                "Phiên đấu giá đã được đóng.");
+                "Chức năng đang chờ backend",
+                "Backend chưa có command CLOSE_AUCTION để đóng phiên thật.");
     }
     @FXML
     public void initialize() {
@@ -423,7 +420,11 @@ public class BiddingController {
         // Bấm Enter thì đặt giá
         btnDatGia.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.DOWN) {
-                btnDongPhien.requestFocus();
+                if (btnDongPhien.isVisible()) {
+                    btnDongPhien.requestFocus();
+                } else {
+                    btnQuayLai.requestFocus();
+                }
                 event.consume();
 
             } else if (event.getCode() == KeyCode.UP) {
@@ -455,7 +456,11 @@ public class BiddingController {
         // Bấm Enter thì quay lại danh sách đấu giá
         btnQuayLai.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
-                btnDongPhien.requestFocus();
+                if (btnDongPhien.isVisible()) {
+                    btnDongPhien.requestFocus();
+                } else {
+                    btnDatGia.requestFocus();
+                }
                 event.consume();
 
             } else if (event.getCode() == KeyCode.ENTER) {
