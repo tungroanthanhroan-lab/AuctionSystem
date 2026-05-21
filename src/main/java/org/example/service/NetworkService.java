@@ -13,6 +13,18 @@ public class NetworkService {
     private static ObjectOutputStream out;
     private static ObjectInputStream in;
 
+    /*
+     * Lưu lại lệnh login gần nhất.
+     *
+     * Vì server lưu loggedInUser theo từng socket,
+     * nếu socket bị mất rồi reconnect thì client cần login lại tự động.
+     */
+    private static String lastLoginMessage;
+
+    public static void setLastLoginMessage(String loginMessage) {
+        lastLoginMessage = loginMessage;
+    }
+
     private static void connectIfNeeded() throws Exception {
         if (socket == null || socket.isClosed()) {
             socket = new Socket(SERVER_HOST, SERVER_PORT);
@@ -26,27 +38,66 @@ public class NetworkService {
 
     public synchronized String sendMessage(String message) {
         try {
+            boolean needAutoLogin = socket == null || socket.isClosed();
+
             connectIfNeeded();
+
+            /*
+             * Nếu socket vừa được mở lại, mà request hiện tại không phải LOGIN,
+             * thì tự gửi lại LOGIN trước để server có loggedInUser.
+             */
+            if (needAutoLogin
+                    && lastLoginMessage != null
+                    && !lastLoginMessage.trim().isEmpty()
+                    && !message.startsWith("LOGIN")) {
+
+                out.writeObject(lastLoginMessage);
+                out.flush();
+
+                String loginResponse = readStringResponse();
+
+                System.out.println("Auto login response: " + loginResponse);
+
+                if (!loginResponse.startsWith("SUCCESS")) {
+                    return "ERROR|Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại!";
+                }
+            }
 
             out.writeObject(message);
             out.flush();
 
+            return readStringResponse();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            closeConnectionOnly();
+            return "ERROR|Không kết nối được tới server!";
+        }
+    }
+
+    /*
+     * Server có thể gửi object realtime như BidUpdateEvent trước response String.
+     * Vì vậy client phải bỏ qua object không phải String,
+     * đọc tiếp tới khi nhận được SUCCESS| / FAIL| / ERROR|.
+     */
+    private static String readStringResponse() throws Exception {
+        while (true) {
             Object response = in.readObject();
 
             if (response instanceof String) {
                 return (String) response;
             }
 
-            return "ERROR|Server trả về dữ liệu không hợp lệ!";
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            closeConnection();
-            return "ERROR|Không kết nối được tới server!";
+            System.out.println("Nhận object realtime từ server: "
+                    + response.getClass().getName());
         }
     }
 
-    public static void closeConnection() {
+    /*
+     * Đóng socket nhưng KHÔNG xóa lastLoginMessage.
+     * Dùng khi lỗi kết nối tạm thời để lần sau có thể auto-login.
+     */
+    private static void closeConnectionOnly() {
         try {
             if (in != null) {
                 in.close();
@@ -67,5 +118,14 @@ public class NetworkService {
             out = null;
             socket = null;
         }
+    }
+
+    /*
+     * Dùng khi logout thật sự.
+     * Đóng kết nối và xóa thông tin login đã lưu.
+     */
+    public static void closeConnection() {
+        closeConnectionOnly();
+        lastLoginMessage = null;
     }
 }

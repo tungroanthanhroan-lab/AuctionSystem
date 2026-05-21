@@ -7,7 +7,7 @@ public class AppSession {
      * Các controller khác có thể dùng để biết ai đang thao tác.
      */
     private static String currentUsername;
-
+    private static String currentRole;
     /*
      * Lấy username đang đăng nhập.
      */
@@ -22,6 +22,18 @@ public class AppSession {
     public static void setCurrentUsername(String username) {
         currentUsername = username;
     }
+    public static String getCurrentRole() {
+        return currentRole;
+    }
+
+    public static void setCurrentRole(String role) {
+        currentRole = role;
+    }
+
+    public static boolean isAdmin() {
+        return "ADMIN".equalsIgnoreCase(currentRole);
+    }
+
 
     /*
      * Xóa thông tin đăng nhập khi logout.

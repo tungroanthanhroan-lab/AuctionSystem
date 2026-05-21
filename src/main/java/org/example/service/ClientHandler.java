@@ -82,6 +82,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("REGISTER")) {
                 handleRegister(command);
 
+            } else if (command.startsWith("CREATE_AUCTION")) {
+                handleCreateAuction(command);
+
             } else if (command.startsWith("BID")) {
                 handleBid(command);
 
@@ -97,9 +100,16 @@ public class ClientHandler implements Runnable, AuctionObserver {
         List<Auction> auctions = auctionService.getActiveAuctionsList();
         StringBuilder sb = new StringBuilder("AUCTIONS");
         for (Auction a : auctions) {
+            String title = "Không rõ sản phẩm";
+
+            if (a.getItem() != null && a.getItem().getTitle() != null) {
+                title = a.getItem().getTitle();
+            }
+
             sb.append("|").append(a.getAuctionId())
-              .append(",").append(a.getCurrentHighestBid())
-              .append(",").append(a.getStatus());
+                    .append(",").append(title)
+                    .append(",").append(a.getCurrentHighestBid())
+                    .append(",").append(a.getStatus());
         }
         sendResponse(sb.toString());
     }
@@ -128,7 +138,72 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("FAIL|Sai format. Dùng: REGISTER|username|password|role");
         }
     }
+    /**
+     * Seller/Admin tạo phiên đấu giá mới.
+     *
+     * Format:
+     * CREATE_AUCTION|title|startingPrice|endTime
+     *
+     * Ví dụ:
+     * CREATE_AUCTION|Laptop Gaming|1000|2026-12-31T23:59
+     */
+    private void handleCreateAuction(String command) throws IOException {
+        // 1. Kiểm tra đăng nhập
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi tạo phiên đấu giá");
+            return;
+        }
 
+        // 2. Kiểm tra quyền tạo phiên
+        String role = loggedInUser.getRole();
+
+        if (!"ADMIN".equalsIgnoreCase(role)
+                && !"USER".equalsIgnoreCase(role)) {
+            sendResponse("FAIL|Chỉ Seller hoặc Admin mới được tạo phiên đấu giá");
+            return;
+        }
+
+        // 3. Tách tham số
+        String[] parts = command.split("\\|", -1);
+
+        if (parts.length != 4) {
+            sendResponse("FAIL|Sai format. Dùng: CREATE_AUCTION|title|startingPrice|endTime");
+            return;
+        }
+
+        try {
+            String title = parts[1].trim();
+            double startingPrice = Double.parseDouble(parts[2].trim());
+            String endTime = parts[3].trim();
+
+            if (title.isEmpty()) {
+                sendResponse("FAIL|Tên sản phẩm không được để trống");
+                return;
+            }
+
+            if (startingPrice < 0) {
+                sendResponse("FAIL|Giá khởi điểm không được âm");
+                return;
+            }
+
+            boolean success = auctionService.createAuctionWithNewItem(
+                    title,
+                    "",
+                    startingPrice,
+                    endTime,
+                    loggedInUser.getId()
+            );
+
+            if (success) {
+                sendResponse("SUCCESS|Phiên đấu giá đã được tạo thành công");
+            } else {
+                sendResponse("FAIL|Tạo phiên đấu giá thất bại. Kiểm tra dữ liệu nhập.");
+            }
+
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|Giá khởi điểm không hợp lệ");
+        }
+    }
     private void handleBid(String command) throws IOException {
         // Format: BID|auctionId|amount
         String[] parts = command.split("\\|");
@@ -167,15 +242,18 @@ public class ClientHandler implements Runnable, AuctionObserver {
     /** Nhận event real-time từ AuctionNotifier, đẩy ngay về client */
     @Override
     public void onBidUpdate(BidUpdateEvent event) {
-        try {
-            out.writeObject(event);
-            out.flush();
-        } catch (IOException e) {
-            System.out.println("[Notifier] Không gửi được event → tự động remove client.");
-            auctionNotifier.removeObserver(this);
-        }
+        /*
+         * Tạm thời không gửi BidUpdateEvent object về JavaFX client.
+         *
+         * UI hiện đang chờ response dạng String:
+         * SUCCESS|...
+         * FAIL|...
+         *
+         * Nếu gửi object event xen vào, client dễ đọc sai hoặc báo lỗi kết nối.
+         * Vì vậy chỉ log ra console server để biết có update xảy ra.
+         */
+        System.out.println("[Notifier] Có bid update, tạm thời không gửi realtime object về client.");
     }
-
     private void sendResponse(String message) throws IOException {
         out.writeObject(message);
         out.flush();

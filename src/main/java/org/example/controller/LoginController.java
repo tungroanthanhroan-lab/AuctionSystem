@@ -110,7 +110,7 @@ public class LoginController {
         if (response.startsWith("ERROR")) {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi kết nối",
-                    "Không kết nối được tới server!");
+                    layNoiDungPhanHoi(response));
             return;
         }
 
@@ -122,7 +122,21 @@ public class LoginController {
              * để hiển thị người đặt giá.
              */
             AppSession.setCurrentUsername(username.trim());
+            /*
+             * Lưu lại message login gần nhất.
+             *
+             * Server lưu loggedInUser theo từng socket.
+             * Nếu socket bị reconnect, NetworkService sẽ tự login lại
+             * trước khi gửi BID / CREATE_AUCTION.
+             */
+            String role = "USER";
 
+            if (response.contains("Role:")) {
+                role = response.substring(response.indexOf("Role:") + "Role:".length()).trim();
+            }
+
+            AppSession.setCurrentRole(role);
+            NetworkService.setLastLoginMessage(message);
             showAlert(Alert.AlertType.INFORMATION,
                     "Đăng nhập thành công",
                     "Chào mừng " + username.trim() +" ! ");

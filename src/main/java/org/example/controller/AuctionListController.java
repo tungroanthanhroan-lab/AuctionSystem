@@ -100,21 +100,17 @@ public class AuctionListController {
 
             String[] fields = auctionData.split(",");
 
-            if (fields.length < 3) {
+            if (fields.length < 4) {
                 continue;
             }
 
             String auctionId = fields[0].trim();
-            String currentPrice = fields[1].trim();
-            String status = fields[2].trim();
+            String title = fields[1].trim();
+            String currentPrice = fields[2].trim();
+            String status = fields[3].trim();
 
-            /*
-             * BiddingController sẽ lấy auctionId bằng phần trước dấu " - ".
-             * Ví dụ: "1 - Phiên đấu giá - Giá hiện tại: 0.0$ - Trạng thái: OPEN"
-             * auctionId = "1"
-             */
             String displayText = auctionId
-                    + " - Phiên đấu giá"
+                    + " - " + title
                     + " - Giá hiện tại: " + currentPrice + "$"
                     + " - Trạng thái: " + status;
 

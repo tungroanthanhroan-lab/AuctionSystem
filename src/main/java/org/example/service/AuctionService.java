@@ -91,7 +91,61 @@ public class AuctionService {
             }
         }
     }
+    /**
+     * Seller/Admin tạo phiên đấu giá mới bằng tên sản phẩm.
+     *
+     * Flow:
+     * 1. Validate dữ liệu.
+     * 2. Gọi AuctionDAO để tạo item + auction trong DB.
+     * 3. Đưa auction mới vào activeAuctions trên RAM.
+     * 4. VIEW_ITEMS sẽ thấy phiên mới ngay.
+     */
+    public boolean createAuctionWithNewItem(String title,
+                                            String description,
+                                            double startingPrice,
+                                            String endTime,
+                                            int sellerId) {
+        try {
+            if (title == null || title.trim().isEmpty()) {
+                return false;
+            }
 
+            if (startingPrice < 0) {
+                return false;
+            }
+
+            if (description == null) {
+                description = "";
+            }
+
+            if (endTime == null || endTime.trim().isEmpty()) {
+                endTime = "2099-12-31T23:59";
+            }
+
+            Auction auction = auctionDAO.createAuctionWithNewItem(
+                    title.trim(),
+                    description.trim(),
+                    startingPrice,
+                    endTime.trim(),
+                    sellerId
+            );
+
+            if (auction == null) {
+                return false;
+            }
+
+            activeAuctions.put(auction.getAuctionId(), auction);
+
+            System.out.println("Đã tạo phiên đấu giá mới: " + auction.getAuctionId());
+
+            return true;
+
+        } catch (Exception e) {
+            System.out.println("Lỗi tạo phiên đấu giá: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
     // Các hàm phụ trợ khác (có thể dùng cho chức năng VIEW_ITEMS)
     public List<Auction> getActiveAuctionsList() {
         return List.copyOf(activeAuctions.values());

@@ -30,12 +30,68 @@ public class UserDAO {
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.execute();
             System.out.println("[DB] Đã kiểm tra/tạo bảng users.");
+            //Tạo tài khoản admin mặc định nếu chưa tồn tại
+            createDefaultAdminIfNotExists();
         } catch (SQLException e) {
             System.err.println("[DB] Lỗi tạo bảng users: " + e.getMessage());
             e.printStackTrace();
         }
     }
+    public void createDefaultAdminIfNotExists() {
+        String checkSql = "SELECT COUNT(*) FROM users WHERE username = ?";
+        String insertSql = "INSERT INTO users(username, password, role, balance) VALUES(?, ?, ?, ?)";
+        String updateSql = "UPDATE users SET password = ?, role = ? WHERE username = ?";
 
+        Connection conn = DatabaseConnection.getConnection();
+
+        try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+            checkStmt.setString(1, "admin");
+
+            boolean adminExists = false;
+
+            try (ResultSet rs = checkStmt.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    adminExists = true;
+                }
+            }
+
+            /*
+             * UserDAO.login() so sánh password đã hash SHA-256.
+             * Vì vậy admin mặc định cũng phải lưu password đã hash,
+             * không được lưu plain text "admin123".
+             */
+            String hashedAdminPassword = hashPassword("admin123");
+
+            if (adminExists) {
+                try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                    updateStmt.setString(1, hashedAdminPassword);
+                    updateStmt.setString(2, "ADMIN");
+                    updateStmt.setString(3, "admin");
+
+                    updateStmt.executeUpdate();
+
+                    System.out.println("[DB] Đã cập nhật tài khoản admin mặc định: admin/admin123");
+                }
+
+                return;
+            }
+
+            try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
+                insertStmt.setString(1, "admin");
+                insertStmt.setString(2, hashedAdminPassword);
+                insertStmt.setString(3, "ADMIN");
+                insertStmt.setDouble(4, 0.0);
+
+                insertStmt.executeUpdate();
+
+                System.out.println("[DB] Đã tạo tài khoản admin mặc định: admin/admin123");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi tạo/cập nhật admin mặc định: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
     /**
      * Đăng ký user mới.
      * FIX BUG 10: Hash password bằng SHA-256 trước khi lưu vào DB.

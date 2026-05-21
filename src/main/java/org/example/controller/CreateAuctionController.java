@@ -7,7 +7,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
-import org.example.service.AuctionDataStore;
+import org.example.service.NetworkService;
 
 import java.io.IOException;
 
@@ -19,20 +19,25 @@ public class CreateAuctionController {
     @FXML
     private TextField txtStartPrice;
 
+    @FXML
+    private TextField txtEndTime;
+
+    private final NetworkService networkService = new NetworkService();
+
     /*
      * Hàm chạy khi người dùng bấm nút TẠO PHIÊN.
      *
      * Luồng xử lý:
-     * 1. Lấy tên sản phẩm và giá khởi điểm.
+     * 1. Lấy tên sản phẩm, giá khởi điểm và thời gian kết thúc.
      * 2. Kiểm tra dữ liệu nhập.
-     * 3. Thêm phiên mới vào AuctionDataStore.
-     * 4. Hiện popup tạo thành công.
-     * 5. Quay lại Home.
+     * 3. Gửi CREATE_AUCTION lên server.
+     * 4. Nếu server phản hồi thành công thì quay lại Home.
      */
     @FXML
     private void handleCreateAuction() {
         String auctionName = txtAuctionName.getText();
         String startPriceText = txtStartPrice.getText();
+        String endTime = txtEndTime.getText();
 
         if (auctionName == null || auctionName.trim().isEmpty()) {
             showAlert(Alert.AlertType.WARNING,
@@ -48,6 +53,13 @@ public class CreateAuctionController {
             return;
         }
 
+        if (endTime == null || endTime.trim().isEmpty()) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Cảnh báo",
+                    "Bạn chưa nhập thời gian kết thúc!");
+            return;
+        }
+
         try {
             double startPrice = Double.parseDouble(startPriceText.trim());
 
@@ -59,19 +71,47 @@ public class CreateAuctionController {
             }
 
             /*
-             * Tạm thời tạo id bằng số lượng phiên hiện có + 1.
-             * Vì hiện tại AuctionDataStore vẫn là dữ liệu demo phía client.
+             * Format gửi lên server:
+             * CREATE_AUCTION|title|startingPrice|endTime
+             *
+             * Ví dụ:
+             * CREATE_AUCTION|Laptop Gaming|1000|2026-12-31T23:59
              */
-            int newId = AuctionDataStore.getCurrentPrices().size() + 1;
-            String fullAuctionName = newId + " - " + auctionName.trim();
+            String message = "CREATE_AUCTION|"
+                    + auctionName.trim() + "|"
+                    + startPrice + "|"
+                    + endTime.trim();
 
-            AuctionDataStore.addNewAuction(fullAuctionName, startPrice);
+            String response = networkService.sendMessage(message);
 
-            showAlert(Alert.AlertType.INFORMATION,
-                    "Thành công",
-                    "Đã tạo phiên đấu giá: " + fullAuctionName);
+            System.out.println("Server trả về khi tạo phiên: " + response);
 
-            handleBackToHome();
+            if (response.startsWith("SUCCESS")) {
+                showAlert(Alert.AlertType.INFORMATION,
+                        "Thành công",
+                        response.replace("SUCCESS|", ""));
+
+                handleBackToHome();
+                return;
+            }
+
+            if (response.startsWith("FAIL")) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Tạo phiên thất bại",
+                        response.replace("FAIL|", ""));
+                return;
+            }
+
+            if (response.startsWith("ERROR")) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        "Không kết nối được tới server!");
+                return;
+            }
+
+            showAlert(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
 
         } catch (NumberFormatException e) {
             showAlert(Alert.AlertType.ERROR,
