@@ -98,8 +98,11 @@ public class AuctionListController {
         for (int i = 1; i < parts.length; i++) {
             String auctionData = parts[i];
 
-            String[] fields = auctionData.split(",");
-
+            String[] fields = auctionData.split(",", -1);
+            /*
+             * Format từ server:
+             * auctionId,title,currentHighestBid,status,endTime
+             */
             if (fields.length < 4) {
                 continue;
             }
@@ -113,6 +116,11 @@ public class AuctionListController {
                     + " - " + title
                     + " - Giá hiện tại: " + currentPrice + "$"
                     + " - Trạng thái: " + status;
+
+            if (fields.length >= 5 && !fields[4].trim().isEmpty()) {
+                String endTime = fields[4].trim();
+                displayText += " - Kết thúc: " + endTime;
+            }
 
             listAuctions.getItems().add(displayText);
         }

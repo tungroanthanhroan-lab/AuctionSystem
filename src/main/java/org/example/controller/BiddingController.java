@@ -16,6 +16,12 @@ import javafx.scene.control.Label;
 import javafx.application.Platform;
 import org.example.service.NetworkService;
 import org.example.service.AppSession;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
+
+
+import java.time.LocalDateTime;
 public class BiddingController {
     //khai bao cac thanh phan co fx:id ben file FXML
     @FXML
@@ -38,10 +44,17 @@ public class BiddingController {
 
     @FXML
     private Button btnQuayLai;
+    @FXML
+    private Label lblCountdown;
+
+    private Timeline countdownTimeline;
+    private LocalDateTime auctionEndTime;
+    private Timeline refreshTimeline;
 
     // Tên phiên đấu giá hiện tại đang được mở
 
     private String auctionName;
+    private String currentAuctionId;
 
     @FXML
     private Label lblTrangThai;
@@ -86,6 +99,15 @@ public class BiddingController {
              */
             String[] mainParts = auctionInfo.split(" - Giá hiện tại:");
             auctionName = mainParts[0].trim();
+
+            /*
+             * auctionName có dạng:
+             * "2 - Laptop Gaming"
+             *
+             * Lấy auctionId để refresh đúng phiên từ server.
+             */
+            String[] auctionNameParts = auctionName.split(" - ", 2);
+            currentAuctionId = auctionNameParts[0].trim();
 
             // Hiển thị tên phiên
             lblTenSanPham.setText("Sản phẩm: " + auctionName);
@@ -145,14 +167,41 @@ public class BiddingController {
              *
              * Nếu không có trạng thái trong chuỗi thì fallback về AuctionDataStore.
              */
+            /*
+             * Load trạng thái phiên và thời gian kết thúc.
+             *
+             * auctionInfo có dạng:
+             * "1 - hee loo - Giá hiện tại: 2.0$ - Trạng thái: OPEN - Kết thúc: 2026-05-30T23:59"
+             */
             String status = null;
+            String endTimeText = null;
 
+            /*
+             * Lấy endTime trước.
+             */
+            if (originalAuctionInfo.contains("Kết thúc:")) {
+                endTimeText = originalAuctionInfo
+                        .substring(originalAuctionInfo.indexOf("Kết thúc:") + "Kết thúc:".length())
+                        .trim();
+            }
+
+            /*
+             * Lấy status.
+             * Nếu sau status có phần " - Kết thúc:" thì cắt bỏ phần đó.
+             */
             if (originalAuctionInfo.contains("Trạng thái:")) {
                 status = originalAuctionInfo
                         .substring(originalAuctionInfo.indexOf("Trạng thái:") + "Trạng thái:".length())
                         .trim();
+
+                if (status.contains(" - Kết thúc:")) {
+                    status = status.substring(0, status.indexOf(" - Kết thúc:")).trim();
+                }
             }
 
+            /*
+             * Xử lý trạng thái.
+             */
             if (status != null && !status.isEmpty()) {
                 phienDangMo = status.equalsIgnoreCase("OPEN")
                         || status.equalsIgnoreCase("RUNNING")
@@ -182,6 +231,23 @@ public class BiddingController {
             }
 
             /*
+             * Xử lý countdown.
+             */
+            if (endTimeText != null && !endTimeText.isEmpty()) {
+                try {
+                    auctionEndTime = LocalDateTime.parse(endTimeText);
+                    startCountdown();
+                } catch (Exception parseException) {
+                    lblCountdown.setText("Thời gian còn lại: Không xác định");
+                    System.out.println("Không parse được endTime: " + endTimeText);
+                    parseException.printStackTrace();
+                }
+            } else {
+                lblCountdown.setText("Thời gian còn lại: Không xác định");
+                System.out.println("auctionInfo không có endTime: " + originalAuctionInfo);
+            }
+
+            /*
              * Bật/tắt các nút theo trạng thái phiên.
              */
             txtNhapGia.setDisable(!phienDangMo);
@@ -193,6 +259,7 @@ public class BiddingController {
             btnDongPhien.setVisible(AppSession.isAdmin());
             btnDongPhien.setManaged(AppSession.isAdmin());
             btnDongPhien.setDisable(!phienDangMo || !AppSession.isAdmin());
+            startAutoRefresh();
 
         } catch (Exception e) {
             /*
@@ -283,12 +350,19 @@ public class BiddingController {
              * Tránh lỗi popup báo FAIL nhưng giá vẫn đổi.
              */
             if (response.startsWith("FAIL")) {
+                /*
+                 * Nếu server từ chối bid, rất có thể giá hiện tại trên server
+                 * đã cao hơn giá UI đang hiển thị.
+                 * Vì vậy refresh lại phiên hiện tại ngay để UI bắt kịp server.
+                 */
+                refreshCurrentAuctionFromServer();
+
                 hienThiPopup(Alert.AlertType.WARNING,
                         "Đặt giá thất bại",
                         response.replace("FAIL|", ""));
+
                 return;
             }
-
             /*
              * Chỉ khi server trả SUCCESS mới cập nhật:
              * - giá hiện tại
@@ -341,6 +415,155 @@ public class BiddingController {
             lblGiaHienTai.setText("Giá hiện tại: " + giaMoi + " $");
         });
     }
+    private void startCountdown() {
+        if (countdownTimeline != null) {
+            countdownTimeline.stop();
+        }
+
+        countdownTimeline = new Timeline(
+                new KeyFrame(Duration.seconds(1), event -> updateCountdown())
+        );
+
+        countdownTimeline.setCycleCount(Timeline.INDEFINITE);
+        countdownTimeline.play();
+
+        updateCountdown();
+    }
+
+    private void updateCountdown() {
+        if (auctionEndTime == null) {
+            lblCountdown.setText("Thời gian còn lại: Không xác định");
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        java.time.Duration remaining = java.time.Duration.between(now, auctionEndTime);
+
+        long seconds = remaining.getSeconds();
+
+        if (seconds <= 0) {
+            lblCountdown.setText("Thời gian còn lại: 00:00:00");
+
+            phienDangMo = false;
+
+            lblTrangThai.setText("Trạng thái: ĐÃ KẾT THÚC");
+            lblTrangThai.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+
+            txtNhapGia.setDisable(true);
+            btnDatGia.setDisable(true);
+            btnDongPhien.setDisable(true);
+
+            if (countdownTimeline != null) {
+                countdownTimeline.stop();
+            }
+
+            return;
+        }
+
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+
+        lblCountdown.setText(
+                String.format("Thời gian còn lại: %02d:%02d:%02d", hours, minutes, secs)
+        );
+    }
+    private void startAutoRefresh() {
+        if (refreshTimeline != null) {
+            refreshTimeline.stop();
+        }
+
+        refreshTimeline = new Timeline(
+                new KeyFrame(Duration.seconds(2), event -> {
+                    /*
+                     * Chạy network ở thread riêng để không làm đơ giao diện JavaFX.
+                     */
+                    new Thread(() -> refreshCurrentAuctionFromServer()).start();
+                })
+        );
+
+        refreshTimeline.setCycleCount(Timeline.INDEFINITE);
+        refreshTimeline.play();
+    }
+    private void refreshCurrentAuctionFromServer() {
+        try {
+            if (currentAuctionId == null || currentAuctionId.trim().isEmpty()) {
+                return;
+            }
+
+            String response = networkService.sendMessage("VIEW_ITEMS");
+
+            if (response == null || !response.startsWith("AUCTIONS")) {
+                return;
+            }
+
+            String[] parts = response.split("\\|");
+
+            for (int i = 1; i < parts.length; i++) {
+                String auctionData = parts[i];
+                String[] fields = auctionData.split(",", -1);
+
+                /*
+                 * Format hiện tại:
+                 * auctionId,title,currentHighestBid,status,endTime
+                 * hoặc auctionId,title,currentHighestBid,status,startTime,endTime
+                 */
+                if (fields.length < 4) {
+                    continue;
+                }
+
+                String auctionId = fields[0].trim();
+
+                if (!auctionId.equals(currentAuctionId)) {
+                    continue;
+                }
+
+                String title = fields[1].trim();
+                double serverPrice = Double.parseDouble(fields[2].trim());
+                String status = fields[3].trim();
+
+                Platform.runLater(() -> {
+                    /*
+                     * Nếu giá server khác giá UI đang hiển thị
+                     * thì cập nhật màn hình.
+                     */
+                    if (serverPrice != giaHienTai) {
+                        giaHienTai = serverPrice;
+
+                        lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
+
+                        /*
+                         * Backend hiện chưa trả currentLeader trong VIEW_ITEMS,
+                         * nên UI chưa biết chính xác ai đang dẫn đầu.
+                         */
+                        lblNguoiDanDau.setText("Người dẫn đầu: Đã cập nhật từ server");
+                    }
+
+                    boolean serverAuctionOpen = status.equalsIgnoreCase("OPEN")
+                            || status.equalsIgnoreCase("RUNNING");
+
+                    if (!serverAuctionOpen && phienDangMo) {
+                        phienDangMo = false;
+
+                        lblTrangThai.setText("Trạng thái: ĐÃ KẾT THÚC");
+                        lblTrangThai.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+
+                        txtNhapGia.setDisable(true);
+                        btnDatGia.setDisable(true);
+                        btnDongPhien.setDisable(true);
+                    }
+                });
+
+                return;
+            }
+
+        } catch (Exception e) {
+            /*
+             * Không popup ở auto refresh, tránh cứ 2 giây hiện lỗi.
+             */
+            System.out.println("[AutoRefresh] Không refresh được phiên hiện tại: " + e.getMessage());
+        }
+    }
     //hàm hỗ trợ bật Popup
     private void hienThiPopup(Alert.AlertType loaiPopup, String tieuDe, String noiDung){
         Alert alert = new Alert(loaiPopup);
@@ -358,6 +581,12 @@ public class BiddingController {
      */
     @FXML
     private void handleBackToAuctionList() {
+        if (countdownTimeline != null) {
+            countdownTimeline.stop();
+        }
+        if (refreshTimeline != null) {
+            refreshTimeline.stop();
+        }
         try {
             // Load file giao diện danh sách phiên đấu giá
             FXMLLoader loader = new FXMLLoader(

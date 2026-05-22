@@ -219,6 +219,22 @@ public class AuctionDAO {
                     "OPEN"
             );
 
+            /*
+             * Set item vào auction để VIEW_ITEMS lấy được title ngay,
+             * không phải chờ restart server/load lại từ DB.
+             */
+            Item item = new Item(
+                    itemId,
+                    title,
+                    description,
+                    startingPrice,
+                    startingPrice,
+                    endTime,
+                    sellerId,
+                    "OPEN"
+            );
+
+            auction.setItem(item);
             auction.setCurrentHighestBid(startingPrice);
             auction.setVersion(0);
 

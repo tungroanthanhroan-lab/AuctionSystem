@@ -105,11 +105,15 @@ public class ClientHandler implements Runnable, AuctionObserver {
             if (a.getItem() != null && a.getItem().getTitle() != null) {
                 title = a.getItem().getTitle();
             }
-
+            String endTime = "";
+            if (a.getItem()!=null && a.getItem().getEndTime() != null){
+                endTime = a.getItem().getEndTime();
+            }
             sb.append("|").append(a.getAuctionId())
                     .append(",").append(title)
                     .append(",").append(a.getCurrentHighestBid())
-                    .append(",").append(a.getStatus());
+                    .append(",").append(a.getStatus())
+                    .append(",").append(endTime);
         }
         sendResponse(sb.toString());
     }
