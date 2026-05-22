@@ -149,7 +149,7 @@ public class RegisterController {
          * Vì màn đăng ký không còn chọn role nữa,
          * ta để mặc định tài khoản có cả quyền mua và bán.
          */
-        String role = "BOTH";
+        String role = "USER";
 
         if (username == null || username.trim().isEmpty()) {
             showAlert(Alert.AlertType.WARNING, "Cảnh báo", "Bạn chưa nhập tài khoản!");

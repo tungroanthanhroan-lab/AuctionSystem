@@ -11,23 +11,23 @@
            fx:controller="org.example.controller.CreateAuctionController"
            stylesheets="@/styles/style.css"
            prefWidth="620"
-           prefHeight="520">
+           prefHeight="560">
 
     <VBox alignment="CENTER"
           spacing="18"
           styleClass="page-container"
-          maxWidth="420"
-          prefHeight="390">
+          maxWidth="440"
+          prefHeight="430">
 
         <Label text="Tạo phiên đấu giá"
                styleClass="title-label"/>
 
-        <Label text="Nhập thông tin sản phẩm và giá khởi điểm"
+        <Label text="Nhập thông tin sản phẩm, giá khởi điểm và thời gian kết thúc"
                styleClass="subtitle-label"
                alignment="CENTER"
                textAlignment="CENTER"
                wrapText="true"
-               maxWidth="320"/>
+               maxWidth="340"/>
 
         <TextField fx:id="txtAuctionName"
                    promptText="Tên sản phẩm / phiên đấu giá"
@@ -36,6 +36,11 @@
 
         <TextField fx:id="txtStartPrice"
                    promptText="Giá khởi điểm ($)"
+                   prefWidth="260"
+                   prefHeight="42"/>
+
+        <TextField fx:id="txtEndTime"
+                   promptText="Thời gian kết thúc, ví dụ: 2026-12-31T23:59"
                    prefWidth="260"
                    prefHeight="42"/>
 
@@ -48,7 +53,7 @@
         <Button fx:id="btnBack"
                 text="Quay lại"
                 styleClass="secondary-button"
-                onAction="#handleBackToSellerHome"/>
+                onAction="#handleBackToHome"/>
 
     </VBox>
 
