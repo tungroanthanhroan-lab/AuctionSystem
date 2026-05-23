@@ -12,27 +12,23 @@ import javafx.stage.Stage;
 import org.example.service.NetworkService;
 
 import java.io.IOException;
-
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 public class AuctionListController {
 
-    // ListView trong auction-list-view.fxml dùng để hiển thị các phiên đấu giá
     @FXML
     private ListView<String> listAuctions;
 
     private final NetworkService networkService = new NetworkService();
-
-    /**
-     * Hàm initialize() tự động chạy sau khi file FXML được load.
-     * Lấy danh sách phiên đấu giá từ server thay vì AuctionDataStore local.
-     */
+    private final Map<String, String> auctionInfoMap = new HashMap<>();
     @FXML
     public void initialize() {
-        // Xóa danh sách cũ trước khi thêm lại dữ liệu
         listAuctions.getItems().clear();
 
         loadAuctionsFromServer();
 
-        // Khi chọn một phiên và bấm Enter thì mở màn hình đấu giá
         listAuctions.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 handleOpenBidding();
@@ -40,7 +36,6 @@ public class AuctionListController {
             }
         });
 
-        // Khi double click chuột trái vào một phiên đấu giá thì mở màn hình đấu giá
         listAuctions.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                 handleOpenBidding();
@@ -49,15 +44,9 @@ public class AuctionListController {
         });
     }
 
-    /**
-     * Lấy danh sách phiên đấu giá đang mở từ server.
-     *
-     * Server hiện trả format:
-     * AUCTIONS|auctionId,currentHighestBid,status|auctionId,currentHighestBid,status
-     */
     private void loadAuctionsFromServer() {
         String response = networkService.sendMessage("VIEW_ITEMS");
-
+        auctionInfoMap.clear();
         System.out.println("Server trả về danh sách phiên: " + response);
 
         if (response == null || response.trim().isEmpty()) {
@@ -70,14 +59,14 @@ public class AuctionListController {
         if (response.startsWith("ERROR")) {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi kết nối",
-                    "Không lấy được danh sách phiên đấu giá từ server!");
+                    response.replace("ERROR|", ""));
             return;
         }
 
         if (response.startsWith("FAIL")) {
             showAlert(Alert.AlertType.WARNING,
                     "Server phản hồi",
-                    response);
+                    response.replace("FAIL|", ""));
             return;
         }
 
@@ -97,11 +86,14 @@ public class AuctionListController {
 
         for (int i = 1; i < parts.length; i++) {
             String auctionData = parts[i];
-
             String[] fields = auctionData.split(",", -1);
+
             /*
-             * Format từ server:
-             * auctionId,title,currentHighestBid,status,endTime
+             * Backend có thể trả:
+             * auctionId,title,currentPrice,status,endTime
+             *
+             * hoặc:
+             * auctionId,title,currentPrice,status,startTime,endTime
              */
             if (fields.length < 4) {
                 continue;
@@ -112,15 +104,50 @@ public class AuctionListController {
             String currentPrice = fields[2].trim();
             String status = fields[3].trim();
 
-            String displayText = auctionId
+            String startTime = "";
+            String endTime = "";
+
+            if (fields.length == 5) {
+                endTime = fields[4].trim();
+            } else if (fields.length >= 6) {
+                startTime = fields[4].trim();
+                endTime = fields[5].trim();
+            }
+
+            /*
+             * rawInfo là chuỗi kỹ thuật dùng để truyền sang BiddingController.
+             * Giữ format cũ để BiddingController parse được giá, trạng thái, endTime.
+             */
+            String rawInfo = auctionId
                     + " - " + title
                     + " - Giá hiện tại: " + currentPrice + "$"
                     + " - Trạng thái: " + status;
 
-            if (fields.length >= 5 && !fields[4].trim().isEmpty()) {
-                String endTime = fields[4].trim();
-                displayText += " - Kết thúc: " + endTime;
+            if (!endTime.isEmpty()) {
+                rawInfo += " - Kết thúc: " + endTime;
             }
+
+            /*
+             * displayText là chuỗi thân thiện cho người dùng nhìn trong danh sách.
+             */
+            String displayText = title
+                    + "  •  Giá: " + currentPrice + "$"
+                    + "  •  " + formatStatus(status);
+
+            if (!startTime.isEmpty()) {
+                displayText += "  •  Bắt đầu: " + formatDateTime(startTime);
+            }
+
+            if (!endTime.isEmpty()) {
+                displayText += "  •  Kết thúc: " + formatDateTime(endTime);
+            }
+
+            /*
+             * Lưu mapping:
+             * người dùng chọn displayText đẹp,
+             * nhưng khi mở Bidding thì truyền rawInfo.
+             */
+            auctionInfoMap.put(displayText, rawInfo);
 
             listAuctions.getItems().add(displayText);
         }
@@ -130,17 +157,10 @@ public class AuctionListController {
         }
     }
 
-    /**
-     * Hàm này chạy khi người dùng bấm nút "VÀO ĐẤU GIÁ".
-     * Nếu chưa chọn phiên nào thì hiện popup cảnh báo.
-     * Nếu đã chọn thì chuyển sang màn hình bidding-view.fxml.
-     */
     @FXML
     private void handleOpenBidding() {
-        // Lấy phiên đấu giá mà người dùng đang chọn trong ListView
         String selectedAuction = listAuctions.getSelectionModel().getSelectedItem();
 
-        // Nếu chưa chọn phiên nào thì báo lỗi
         if (selectedAuction == null) {
             showAlert(Alert.AlertType.WARNING,
                     "Cảnh báo",
@@ -156,19 +176,18 @@ public class AuctionListController {
         }
 
         try {
-            // Load màn hình đấu giá trực tiếp
             FXMLLoader loader = new FXMLLoader(
                     getClass().getResource("/views/bidding-view.fxml")
             );
 
             Parent root = loader.load();
 
-            // Truyền phiên đấu giá đang chọn sang BiddingController
             BiddingController biddingController = loader.getController();
-            biddingController.setAuctionInfo(selectedAuction);
 
-            // Lấy cửa sổ hiện tại rồi thay scene sang màn hình bidding
+            String rawAuctionInfo = auctionInfoMap.getOrDefault(selectedAuction, selectedAuction);
+            biddingController.setAuctionInfo(rawAuctionInfo);
             Stage stage = (Stage) listAuctions.getScene().getWindow();
+
             double currentWidth = stage.getWidth();
             double currentHeight = stage.getHeight();
 
@@ -177,7 +196,6 @@ public class AuctionListController {
             stage.show();
 
         } catch (IOException e) {
-            // Nếu không load được FXML thì hiện popup lỗi
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
                     "Không mở được màn hình đấu giá!");
@@ -185,7 +203,44 @@ public class AuctionListController {
         }
     }
 
-    // Hàm để quay lại màn hình chính
+    private String formatStatus(String status) {
+        if (status == null || status.trim().isEmpty()) {
+            return "Không xác định";
+        }
+
+        if (status.equalsIgnoreCase("OPEN") || status.equalsIgnoreCase("RUNNING")) {
+            return "Đang mở";
+        }
+
+        if (status.equalsIgnoreCase("FINISHED")) {
+            return "Đã kết thúc";
+        }
+
+        if (status.equalsIgnoreCase("CANCELED")) {
+            return "Đã hủy";
+        }
+
+        if (status.equalsIgnoreCase("PAID")) {
+            return "Đã thanh toán";
+        }
+
+        return status;
+    }
+
+    private String formatDateTime(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "Không xác định";
+        }
+
+        try {
+            LocalDateTime dateTime = LocalDateTime.parse(value.trim().replace(" ", "T"));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm, dd/MM/yyyy");
+            return dateTime.format(formatter);
+        } catch (Exception e) {
+            return value;
+        }
+    }
+
     @FXML
     private void handleBackToHome() {
         try {
@@ -212,9 +267,6 @@ public class AuctionListController {
         }
     }
 
-    /**
-     * Hàm dùng chung để hiện popup thông báo.
-     */
     private void showAlert(Alert.AlertType type, String title, String content) {
         Alert alert = new Alert(type);
         alert.setTitle(title);
