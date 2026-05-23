@@ -623,15 +623,80 @@ public class BiddingController {
             return;
         }
 
-        /*
-         * Backend hiện chưa có command CLOSE_AUCTION.
-         * Vì vậy UI không tự đóng local nữa để tránh hiểu nhầm:
-         * - đóng local xong quay lại list vẫn thấy phiên đang mở
-         * - dữ liệu server/database không đổi
-         */
-        hienThiPopup(Alert.AlertType.INFORMATION,
-                "Chức năng đang chờ backend",
-                "Backend chưa có command CLOSE_AUCTION để đóng phiên thật.");
+        try {
+            /*
+             * auctionName có dạng:
+             * "5 - nak vt"
+             *
+             * Lấy auctionId là phần trước dấu " - ".
+             */
+            String auctionId = auctionName.split(" - ")[0].trim();
+
+            Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+            confirmAlert.setTitle("Xác nhận đóng phiên");
+            confirmAlert.setHeaderText(null);
+            confirmAlert.setContentText("Bạn có chắc muốn đóng phiên đấu giá này không?");
+
+            if (confirmAlert.showAndWait().isEmpty()
+                    || confirmAlert.getResult().getButtonData().isCancelButton()) {
+                return;
+            }
+
+            String message = "CLOSE_AUCTION|" + auctionId;
+
+            String response = networkService.sendMessage(message);
+
+            System.out.println("Server trả về khi đóng phiên: " + response);
+
+            if (response.startsWith("ERROR")) {
+                hienThiPopup(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        response.replace("ERROR|", ""));
+                return;
+            }
+
+            if (response.startsWith("FAIL")) {
+                hienThiPopup(Alert.AlertType.WARNING,
+                        "Đóng phiên thất bại",
+                        response.replace("FAIL|", ""));
+                return;
+            }
+
+            if (response.startsWith("SUCCESS")) {
+                phienDangMo = false;
+
+                lblTrangThai.setText("Trạng thái: ĐÃ KẾT THÚC");
+                lblTrangThai.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+
+                txtNhapGia.setDisable(true);
+                btnDatGia.setDisable(true);
+                btnDongPhien.setDisable(true);
+
+                if (countdownTimeline != null) {
+                    countdownTimeline.stop();
+                }
+
+                if (refreshTimeline != null) {
+                    refreshTimeline.stop();
+                }
+
+                hienThiPopup(Alert.AlertType.INFORMATION,
+                        "Đóng phiên thành công",
+                        response.replace("SUCCESS|", ""));
+
+                return;
+            }
+
+            hienThiPopup(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
+
+        } catch (Exception e) {
+            hienThiPopup(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không thể đóng phiên đấu giá!");
+            e.printStackTrace();
+        }
     }
     @FXML
     public void initialize() {

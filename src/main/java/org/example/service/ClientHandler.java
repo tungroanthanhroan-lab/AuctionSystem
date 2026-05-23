@@ -88,6 +88,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("BID")) {
                 handleBid(command);
 
+            } else if (command.startsWith("CLOSE_AUCTION")) {
+                handleCloseAuction(command);
+
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
@@ -261,6 +264,44 @@ public class ClientHandler implements Runnable, AuctionObserver {
     private void sendResponse(String message) throws IOException {
         out.writeObject(message);
         out.flush();
+    }
+    /**
+     * Admin đóng phiên đấu giá.
+     *
+     * Protocol:
+     * CLOSE_AUCTION|auctionId
+     */
+    private void handleCloseAuction(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi đóng phiên");
+            return;
+        }
+
+        /*
+         * Chỉ ADMIN được đóng phiên.
+         * UI có thể ẩn nút với USER, nhưng backend vẫn phải check thật.
+         */
+        if (!"ADMIN".equalsIgnoreCase(loggedInUser.getRole())) {
+            sendResponse("FAIL|Chỉ Admin mới được đóng phiên đấu giá");
+            return;
+        }
+
+        String[] parts = command.split("\\|");
+
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: CLOSE_AUCTION|auctionId");
+            return;
+        }
+
+        String auctionId = parts[1].trim();
+
+        boolean success = auctionService.closeAuction(auctionId);
+
+        if (success) {
+            sendResponse("SUCCESS|Phiên đấu giá đã được đóng thành công");
+        } else {
+            sendResponse("FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
+        }
     }
 
     private void cleanup() {
