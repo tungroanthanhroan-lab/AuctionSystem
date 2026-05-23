@@ -272,6 +272,37 @@ public class AuctionDAO {
             return false;
         }
     }
+    /**
+     * Kiểm tra user hiện tại có phải là người tạo/sở hữu phiên đấu giá không.
+     *
+     * Flow:
+     * auctions.item_id -> items.id -> items.seller_id
+     */
+    public boolean isAuctionOwner(String auctionId, int userId) {
+        String sql = "SELECT i.seller_id " +
+                "FROM auctions a " +
+                "JOIN items i ON a.item_id = i.id " +
+                "WHERE a.id = ?";
+
+        Connection conn = DatabaseConnection.getConnection();
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, auctionId);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    int sellerId = rs.getInt("seller_id");
+                    return sellerId == userId;
+                }
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi kiểm tra chủ phiên đấu giá: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return false;
+    }
 
     /**
      * Lấy danh sách các phiên đấu giá đang MỞ (tên cũ giữ lại để tương thích).

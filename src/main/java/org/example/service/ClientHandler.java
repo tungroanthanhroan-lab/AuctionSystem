@@ -229,6 +229,15 @@ public class ClientHandler implements Runnable, AuctionObserver {
             double amount = Double.parseDouble(parts[2]);
             String bidderName = loggedInUser.getUsername();
 
+            /*
+             * Không cho người tạo phiên tự đấu giá phiên của mình.
+             * Rule này phải nằm ở backend để tránh gian lận.
+             */
+            if (auctionService.isAuctionOwner(auctionId, loggedInUser.getId())) {
+                sendResponse("FAIL|Bạn không thể đấu giá phiên do chính mình tạo");
+                return;
+            }
+
             // FIX BUG 5: Chỉ gọi placeBid() — broadcast đã được thực hiện BÊN TRONG AuctionService.
             //            Không tạo thêm event hay gọi broadcast() ở đây nữa.
             boolean success = auctionService.placeBid(auctionId, bidderName, amount);
@@ -277,15 +286,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
             return;
         }
 
-        /*
-         * Chỉ ADMIN được đóng phiên.
-         * UI có thể ẩn nút với USER, nhưng backend vẫn phải check thật.
-         */
-        if (!"ADMIN".equalsIgnoreCase(loggedInUser.getRole())) {
-            sendResponse("FAIL|Chỉ Admin mới được đóng phiên đấu giá");
-            return;
-        }
-
         String[] parts = command.split("\\|");
 
         if (parts.length != 2) {
@@ -295,6 +295,19 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
         String auctionId = parts[1].trim();
 
+        /*
+         * Rule:
+         * - ADMIN được đóng mọi phiên.
+         * - USER chỉ được đóng phiên do chính mình tạo.
+         */
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedInUser.getRole());
+        boolean isOwner = auctionService.isAuctionOwner(auctionId, loggedInUser.getId());
+
+        if (!isAdmin && !isOwner) {
+            sendResponse("FAIL|Bạn chỉ có thể đóng phiên do chính mình tạo");
+            return;
+        }
+
         boolean success = auctionService.closeAuction(auctionId);
 
         if (success) {
@@ -303,7 +316,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
         }
     }
-
     private void cleanup() {
         try {
             auctionNotifier.removeObserver(this);

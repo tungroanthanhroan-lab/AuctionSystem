@@ -253,13 +253,14 @@ public class BiddingController {
             txtNhapGia.setDisable(!phienDangMo);
             btnDatGia.setDisable(!phienDangMo);
             /*
-             * Chỉ ADMIN mới nhìn thấy và bấm được nút Đóng phiên.
-             * USER sẽ không thấy nút này.
+             * Tạm thời cho cả ADMIN và USER thấy nút Đóng phiên.
+             * Backend sẽ kiểm tra quyền thật:
+             * - ADMIN đóng mọi phiên
+             * - USER chỉ đóng phiên do chính mình tạo
              */
-            btnDongPhien.setVisible(AppSession.isAdmin());
-            btnDongPhien.setManaged(AppSession.isAdmin());
-            btnDongPhien.setDisable(!phienDangMo || !AppSession.isAdmin());
-            startAutoRefresh();
+            btnDongPhien.setVisible(true);
+            btnDongPhien.setManaged(true);
+            btnDongPhien.setDisable(!phienDangMo);
 
         } catch (Exception e) {
             /*
@@ -281,9 +282,9 @@ public class BiddingController {
 
             txtNhapGia.setDisable(false);
             btnDatGia.setDisable(false);
-            btnDongPhien.setVisible(AppSession.isAdmin());
-            btnDongPhien.setManaged(AppSession.isAdmin());
-            btnDongPhien.setDisable(!AppSession.isAdmin());
+            btnDongPhien.setVisible(true);
+            btnDongPhien.setManaged(true);
+            btnDongPhien.setDisable(false);
 
             e.printStackTrace();
         }
@@ -616,13 +617,6 @@ public class BiddingController {
     }
     @FXML
     private void handleDongPhien() {
-        if (!AppSession.isAdmin()) {
-            hienThiPopup(Alert.AlertType.ERROR,
-                    "Không có quyền",
-                    "Chỉ Admin mới được đóng phiên đấu giá!");
-            return;
-        }
-
         try {
             /*
              * auctionName có dạng:

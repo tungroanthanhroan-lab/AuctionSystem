@@ -183,6 +183,12 @@ public class AuctionService {
             return false;
         }
     }
+    /**
+     * Kiểm tra user có phải chủ phiên đấu giá không.
+     */
+    public boolean isAuctionOwner(String auctionId, int userId) {
+        return auctionDAO.isAuctionOwner(auctionId, userId);
+    }
     // Các hàm phụ trợ khác (có thể dùng cho chức năng VIEW_ITEMS)
     public List<Auction> getActiveAuctionsList() {
         return List.copyOf(activeAuctions.values());
