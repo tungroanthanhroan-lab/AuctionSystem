@@ -91,6 +91,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("CLOSE_AUCTION")) {
                 handleCloseAuction(command);
 
+            } else if (command.startsWith("GET_BID_HISTORY")) {
+                handleGetBidHistory(command);
+
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
@@ -314,6 +317,45 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("SUCCESS|Phiên đấu giá đã được đóng thành công");
         } else {
             sendResponse("FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
+        }
+    }
+    /**
+     * Lấy lịch sử bid thật từ DB.
+     *
+     * Protocol:
+     * GET_BID_HISTORY|auctionId
+     *
+     * Response:
+     * BID_HISTORY|userA đã đặt 100.0 $ lúc ...|userB đã đặt 120.0 $ lúc ...
+     */
+    private void handleGetBidHistory(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi xem lịch sử đấu giá");
+            return;
+        }
+
+        String[] parts = command.split("\\|");
+
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: GET_BID_HISTORY|auctionId");
+            return;
+        }
+
+        try {
+            int auctionId = Integer.parseInt(parts[1].trim());
+
+            List<String> history = bidDAO.getBidHistory(auctionId);
+
+            StringBuilder sb = new StringBuilder("BID_HISTORY");
+
+            for (String line : history) {
+                sb.append("|").append(line);
+            }
+
+            sendResponse(sb.toString());
+
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|auctionId không hợp lệ");
         }
     }
     private void cleanup() {

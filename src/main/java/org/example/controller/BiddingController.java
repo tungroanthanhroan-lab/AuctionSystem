@@ -109,8 +109,14 @@ public class BiddingController {
             String[] auctionNameParts = auctionName.split(" - ", 2);
             currentAuctionId = auctionNameParts[0].trim();
 
-            // Hiển thị tên phiên
-            lblTenSanPham.setText("Sản phẩm: " + auctionName);
+            String displayTitle = auctionName;
+
+            String[] nameParts = auctionName.split(" - ", 2);
+            if (nameParts.length == 2) {
+                displayTitle = nameParts[1].trim();
+            }
+
+            lblTenSanPham.setText(displayTitle);
 
             /*
              * Load giá hiện tại từ chuỗi auctionInfo do AuctionList truyền sang.
@@ -149,15 +155,11 @@ public class BiddingController {
             lblNguoiDanDau.setText("Người dẫn đầu: " + highestBidder);
 
             /*
-             * Load lịch sử bid.
-             *
-             * Hiện tại backend chưa có GET_BID_HISTORY cho UI,
-             * nên phần này vẫn tạm đọc lịch sử local để không làm crash giao diện.
-             */
-            listLichSuBid.getItems().clear();
-            listLichSuBid.getItems().addAll(
-                    AuctionDataStore.getBidHistory(auctionName)
-            );
+/*
+ * Load lịch sử bid thật từ server.
+ * Nếu backend lỗi thì hàm sẽ tự bỏ qua, không làm crash UI.
+ */
+            loadBidHistoryFromServer();
 
             /*
              * Load trạng thái phiên.
@@ -261,6 +263,7 @@ public class BiddingController {
             btnDongPhien.setVisible(true);
             btnDongPhien.setManaged(true);
             btnDongPhien.setDisable(!phienDangMo);
+            startAutoRefresh();
 
         } catch (Exception e) {
             /*
@@ -375,13 +378,14 @@ public class BiddingController {
 
                 AuctionDataStore.updateBid(auctionName, giaDat, username);
 
-                lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + "$");
+                lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
                 lblNguoiDanDau.setText("Người dẫn đầu: " + username);
 
-                listLichSuBid.getItems().clear();
-                listLichSuBid.getItems().addAll(
-                        AuctionDataStore.getBidHistory(auctionName)
-                );
+                /*
+                 * Sau khi server ghi bid thành công,
+                 * load lại lịch sử thật từ DB.
+                 */
+                loadBidHistoryFromServer();
 
                 txtNhapGia.clear();
 
@@ -489,12 +493,14 @@ public class BiddingController {
     private void refreshCurrentAuctionFromServer() {
         try {
             if (currentAuctionId == null || currentAuctionId.trim().isEmpty()) {
+                System.out.println("[AutoRefresh] currentAuctionId rỗng, không refresh.");
                 return;
             }
 
             String response = networkService.sendMessage("VIEW_ITEMS");
 
             if (response == null || !response.startsWith("AUCTIONS")) {
+                System.out.println("[AutoRefresh] Response không hợp lệ: " + response);
                 return;
             }
 
@@ -519,25 +525,39 @@ public class BiddingController {
                     continue;
                 }
 
-                String title = fields[1].trim();
                 double serverPrice = Double.parseDouble(fields[2].trim());
                 String status = fields[3].trim();
 
+                String refreshedEndTime = "";
+                if (fields.length == 5) {
+                    refreshedEndTime = fields[4].trim();
+                } else if (fields.length >= 6) {
+                    refreshedEndTime = fields[5].trim();
+                }
+
+                String finalRefreshedEndTime = refreshedEndTime;
+
                 Platform.runLater(() -> {
-                    /*
-                     * Nếu giá server khác giá UI đang hiển thị
-                     * thì cập nhật màn hình.
-                     */
                     if (serverPrice != giaHienTai) {
                         giaHienTai = serverPrice;
 
                         lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
+                        lblNguoiDanDau.setText("Người dẫn đầu: Đã cập nhật từ server");
 
                         /*
-                         * Backend hiện chưa trả currentLeader trong VIEW_ITEMS,
-                         * nên UI chưa biết chính xác ai đang dẫn đầu.
+                         * Giá thay đổi nghĩa là có bid mới,
+                         * load lại lịch sử bid thật từ DB.
                          */
-                        lblNguoiDanDau.setText("Người dẫn đầu: Đã cập nhật từ server");
+                        loadBidHistoryFromServer();
+
+                        System.out.println("[AutoRefresh] Đã cập nhật giá mới: " + giaHienTai);
+                    }
+
+                    if (finalRefreshedEndTime != null && !finalRefreshedEndTime.isEmpty()) {
+                        try {
+                            auctionEndTime = LocalDateTime.parse(finalRefreshedEndTime.trim().replace(" ", "T"));
+                        } catch (Exception ignored) {
+                        }
                     }
 
                     boolean serverAuctionOpen = status.equalsIgnoreCase("OPEN")
@@ -558,10 +578,9 @@ public class BiddingController {
                 return;
             }
 
+            System.out.println("[AutoRefresh] Không tìm thấy auctionId hiện tại trong VIEW_ITEMS: " + currentAuctionId);
+
         } catch (Exception e) {
-            /*
-             * Không popup ở auto refresh, tránh cứ 2 giây hiện lỗi.
-             */
             System.out.println("[AutoRefresh] Không refresh được phiên hiện tại: " + e.getMessage());
         }
     }
@@ -756,5 +775,49 @@ public class BiddingController {
                 event.consume();
             }
         });
+    }
+    private void loadBidHistoryFromServer() {
+        try {
+            if (currentAuctionId == null || currentAuctionId.trim().isEmpty()) {
+                return;
+            }
+
+            String response = networkService.sendMessage("GET_BID_HISTORY|" + currentAuctionId);
+
+            System.out.println("Server trả về lịch sử bid: " + response);
+
+            if (response == null || response.trim().isEmpty()) {
+                return;
+            }
+
+            if (response.startsWith("ERROR") || response.startsWith("FAIL")) {
+                /*
+                 * Nếu backend chưa có hoặc lỗi, không popup liên tục.
+                 * Giữ lịch sử local/demo hiện tại.
+                 */
+                System.out.println("[BidHistory] Không lấy được lịch sử từ server: " + response);
+                return;
+            }
+
+            if (!response.startsWith("BID_HISTORY")) {
+                return;
+            }
+
+            listLichSuBid.getItems().clear();
+
+            String[] parts = response.split("\\|");
+
+            if (parts.length == 1) {
+                listLichSuBid.getItems().add("Chưa có lượt đặt giá nào.");
+                return;
+            }
+
+            for (int i = 1; i < parts.length; i++) {
+                listLichSuBid.getItems().add(parts[i]);
+            }
+
+        } catch (Exception e) {
+            System.out.println("[BidHistory] Lỗi load lịch sử bid: " + e.getMessage());
+        }
     }
 }
