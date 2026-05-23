@@ -40,7 +40,12 @@
         <Button text="Tạo phiên đấu giá"
                 styleClass="secondary-button"
                 onAction="#handleOpenCreateAuction"/>
-
+        <Button fx:id="btnMyAuctions"
+                text="Phiên của tôi"
+                styleClass="secondary-button"
+                prefWidth="220"
+                prefHeight="42"
+                onAction="#handleMyAuctions"/>
         <Button text="Đăng xuất"
                 styleClass="danger-button"
                 onAction="#handleLogout"/>

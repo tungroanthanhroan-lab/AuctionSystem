@@ -94,6 +94,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("GET_BID_HISTORY")) {
                 handleGetBidHistory(command);
 
+            } else if (command.startsWith("MY_AUCTIONS")) {
+                handleMyAuctions();
+
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
@@ -357,6 +360,48 @@ public class ClientHandler implements Runnable, AuctionObserver {
         } catch (NumberFormatException e) {
             sendResponse("FAIL|auctionId không hợp lệ");
         }
+    }
+    /**
+     * Lấy danh sách phiên đấu giá do user hiện tại tạo.
+     *
+     * Protocol:
+     * MY_AUCTIONS
+     *
+     * Response:
+     * MY_AUCTIONS|auctionId,title,currentHighestBid,status,endTime
+     */
+    private void handleMyAuctions() throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi xem phiên của tôi");
+            return;
+        }
+
+        List<Auction> auctions = auctionService.getAuctionsBySellerId(loggedInUser.getId());
+
+        StringBuilder sb = new StringBuilder("MY_AUCTIONS");
+
+        for (Auction a : auctions) {
+            String title = "Không rõ sản phẩm";
+            String endTime = "";
+
+            if (a.getItem() != null) {
+                if (a.getItem().getTitle() != null) {
+                    title = a.getItem().getTitle();
+                }
+
+                if (a.getItem().getEndTime() != null) {
+                    endTime = a.getItem().getEndTime();
+                }
+            }
+
+            sb.append("|").append(a.getAuctionId())
+                    .append(",").append(title)
+                    .append(",").append(a.getCurrentHighestBid())
+                    .append(",").append(a.getStatus())
+                    .append(",").append(endTime);
+        }
+
+        sendResponse(sb.toString());
     }
     private void cleanup() {
         try {
