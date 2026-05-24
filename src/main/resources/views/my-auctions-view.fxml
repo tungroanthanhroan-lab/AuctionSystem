@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="org.example.controller.MyAuctionsController"
+           stylesheets="@/styles/style.css"
+           prefWidth="820"
+           prefHeight="620">
+
+    <VBox alignment="CENTER"
+          spacing="16"
+          styleClass="page-container"
+          maxWidth="760"
+          prefHeight="560">
+
+        <Label text="Phiên đấu giá của tôi"
+               styleClass="title-label"/>
+
+        <Label text="Danh sách các phiên bạn đã tạo"
+               styleClass="subtitle-label"/>
+
+        <ListView fx:id="listMyAuctions"
+                  prefWidth="700"
+                  prefHeight="360"/>
+
+        <Button fx:id="btnOpenAuction"
+                text="Xem phiên"
+                styleClass="primary-button"
+                prefWidth="220"
+                prefHeight="42"
+                onAction="#handleOpenAuction"/>
+
+        <Button fx:id="btnBack"
+                text="Quay lại"
+                styleClass="secondary-button"
+                prefWidth="220"
+                prefHeight="42"
+                onAction="#handleBackToHome"/>
+
+    </VBox>
+
+</StackPane>

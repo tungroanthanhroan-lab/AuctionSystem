@@ -10,8 +10,22 @@ import javafx.stage.Stage;
 import org.example.service.NetworkService;
 
 import java.io.IOException;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 public class CreateAuctionController {
+
+    @FXML
+    private DatePicker datePickerEndDate;
+
+    @FXML
+    private ComboBox<Integer> cbHour;
+
+    @FXML
+    private ComboBox<Integer> cbMinute;
 
     @FXML
     private TextField txtAuctionName;
@@ -20,7 +34,15 @@ public class CreateAuctionController {
     private TextField txtStartPrice;
 
     @FXML
-    private TextField txtEndTime;
+    public void initialize() {
+        for (int i = 0; i < 24; i++) {
+            cbHour.getItems().add(i);
+        }
+
+        for (int i = 0; i < 60; i++) {
+            cbMinute.getItems().add(i);
+        }
+    }
 
     private final NetworkService networkService = new NetworkService();
 
@@ -37,7 +59,6 @@ public class CreateAuctionController {
     private void handleCreateAuction() {
         String auctionName = txtAuctionName.getText();
         String startPriceText = txtStartPrice.getText();
-        String endTime = txtEndTime.getText();
 
         if (auctionName == null || auctionName.trim().isEmpty()) {
             showAlert(Alert.AlertType.WARNING,
@@ -53,12 +74,37 @@ public class CreateAuctionController {
             return;
         }
 
-        if (endTime == null || endTime.trim().isEmpty()) {
+        LocalDate selectedDate = datePickerEndDate.getValue();
+        Integer selectedHour = cbHour.getValue();
+        Integer selectedMinute = cbMinute.getValue();
+
+        if (selectedDate == null) {
             showAlert(Alert.AlertType.WARNING,
                     "Cảnh báo",
-                    "Bạn chưa nhập thời gian kết thúc!");
+                    "Bạn chưa chọn ngày kết thúc!");
             return;
         }
+
+        if (selectedHour == null || selectedMinute == null) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Cảnh báo",
+                    "Bạn chưa chọn giờ/phút kết thúc!");
+            return;
+        }
+
+        LocalDateTime endDateTime = LocalDateTime.of(
+                selectedDate,
+                LocalTime.of(selectedHour, selectedMinute)
+        );
+
+        if (endDateTime.isBefore(LocalDateTime.now())) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Thời gian kết thúc phải ở tương lai!");
+            return;
+        }
+
+        String endTime = endDateTime.toString();
 
         try {
             double startPrice = Double.parseDouble(startPriceText.trim());

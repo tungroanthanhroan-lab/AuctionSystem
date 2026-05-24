@@ -7,7 +7,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
+import java.util.ArrayList;
+import java.util.List;
 public class BidDAO {
 
     /**
@@ -70,5 +71,43 @@ public class BidDAO {
             e.printStackTrace();
         }
         return 0;
+    }
+    /**
+     * Lấy lịch sử đặt giá của một phiên đấu giá.
+     *
+     * Format mỗi dòng:
+     * username đã đặt amount $ lúc bid_time
+     */
+    public List<String> getBidHistory(int auctionId) {
+        List<String> history = new ArrayList<>();
+
+        String sql = "SELECT u.username, b.bid_amount, b.bid_time " +
+                "FROM bids b " +
+                "JOIN users u ON b.user_id = u.id " +
+                "WHERE b.auction_id = ? " +
+                "ORDER BY b.bid_time DESC";
+
+        Connection conn = DatabaseConnection.getConnection();
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, auctionId);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    String username = rs.getString("username");
+                    double amount = rs.getDouble("bid_amount");
+                    String bidTime = rs.getString("bid_time");
+
+                    String line = username + " đã đặt " + amount + " $ lúc " + bidTime;
+                    history.add(line);
+                }
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi lấy lịch sử bid: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return history;
     }
 }

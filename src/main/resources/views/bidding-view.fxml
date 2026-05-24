@@ -48,7 +48,11 @@
                alignment="CENTER"
                textAlignment="CENTER"
                maxWidth="520"/>
-
+        <Label fx:id="lblCountdown"
+               text="Thời gian còn lại: --:--:--"
+               alignment="CENTER"
+               textAlignment="CENTER"
+               style="-fx-text-fill: #f59e0b; -fx-font-size: 16px; -fx-font-weight: bold;"/>
         <TextField fx:id="txtNhapGia"
                    promptText="Nhập giá tiền ($)"
                    prefWidth="260"

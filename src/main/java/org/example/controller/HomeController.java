@@ -10,9 +10,10 @@ import javafx.stage.Stage;
 import org.example.model.User;
 import org.example.service.AppSession;
 import java.io.IOException;
-
+import javafx.scene.control.Button;
 public class HomeController {
-
+    @FXML
+    private Button btnMyAuctions;
     @FXML
     private Label welcomeLabel;
 
@@ -111,6 +112,31 @@ public class HomeController {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
                     "Không mở được màn hình tạo phiên đấu giá!");
+            e.printStackTrace();
+        }
+    }
+    @FXML
+    private void handleMyAuctions() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/my-auctions-view.fxml")
+            );
+
+            Parent root = loader.load();
+
+            Stage stage = (Stage) btnMyAuctions.getScene().getWindow();
+
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
+            stage.setTitle("Phiên của tôi");
+            stage.show();
+
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không mở được màn Phiên của tôi!");
             e.printStackTrace();
         }
     }

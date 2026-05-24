@@ -16,43 +16,50 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-public class AuctionListController {
+
+public class MyAuctionsController {
 
     @FXML
-    private ListView<String> listAuctions;
+    private ListView<String> listMyAuctions;
 
     private final NetworkService networkService = new NetworkService();
+
+    /*
+     * Map displayText đẹp -> rawInfo dùng để truyền sang BiddingController.
+     */
     private final Map<String, String> auctionInfoMap = new HashMap<>();
+
     @FXML
     public void initialize() {
-        listAuctions.getItems().clear();
+        loadMyAuctionsFromServer();
 
-        loadAuctionsFromServer();
-
-        listAuctions.setOnKeyPressed(event -> {
+        listMyAuctions.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
-                handleOpenBidding();
+                handleOpenAuction();
                 event.consume();
             }
         });
 
-        listAuctions.setOnMouseClicked(event -> {
+        listMyAuctions.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                handleOpenBidding();
+                handleOpenAuction();
                 event.consume();
             }
         });
     }
 
-    private void loadAuctionsFromServer() {
-        String response = networkService.sendMessage("VIEW_ITEMS");
+    private void loadMyAuctionsFromServer() {
+        listMyAuctions.getItems().clear();
         auctionInfoMap.clear();
-        System.out.println("Server trả về danh sách phiên: " + response);
+
+        String response = networkService.sendMessage("MY_AUCTIONS");
+
+        System.out.println("Server trả về Phiên của tôi: " + response);
 
         if (response == null || response.trim().isEmpty()) {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
-                    "Server không trả về danh sách phiên đấu giá!");
+                    "Server không trả về danh sách phiên của tôi!");
             return;
         }
 
@@ -70,7 +77,7 @@ public class AuctionListController {
             return;
         }
 
-        if (!response.startsWith("AUCTIONS")) {
+        if (!response.startsWith("MY_AUCTIONS")) {
             showAlert(Alert.AlertType.WARNING,
                     "Phản hồi không xác định",
                     response);
@@ -80,7 +87,7 @@ public class AuctionListController {
         String[] parts = response.split("\\|");
 
         if (parts.length == 1) {
-            listAuctions.getItems().add("Không có phiên đấu giá nào đang mở");
+            listMyAuctions.getItems().add("Bạn chưa tạo phiên đấu giá nào.");
             return;
         }
 
@@ -89,11 +96,8 @@ public class AuctionListController {
             String[] fields = auctionData.split(",", -1);
 
             /*
-             * Backend có thể trả:
-             * auctionId,title,currentPrice,status,endTime
-             *
-             * hoặc:
-             * auctionId,title,currentPrice,status,startTime,endTime
+             * Format:
+             * auctionId,title,currentHighestBid,status,endTime
              */
             if (fields.length < 4) {
                 continue;
@@ -104,19 +108,13 @@ public class AuctionListController {
             String currentPrice = fields[2].trim();
             String status = fields[3].trim();
 
-            String startTime = "";
             String endTime = "";
-
-            if (fields.length == 5) {
+            if (fields.length >= 5) {
                 endTime = fields[4].trim();
-            } else if (fields.length >= 6) {
-                startTime = fields[4].trim();
-                endTime = fields[5].trim();
             }
 
             /*
-             * rawInfo là chuỗi kỹ thuật dùng để truyền sang BiddingController.
-             * Giữ format cũ để BiddingController parse được giá, trạng thái, endTime.
+             * rawInfo giữ format để BiddingController parse được.
              */
             String rawInfo = auctionId
                     + " - " + title
@@ -127,39 +125,26 @@ public class AuctionListController {
                 rawInfo += " - Kết thúc: " + endTime;
             }
 
-            /*
-             * displayText là chuỗi thân thiện cho người dùng nhìn trong danh sách.
-             */
             String displayText = title
                     + "  •  Giá: " + currentPrice + "$"
                     + "  •  " + formatStatus(status);
-
-            if (!startTime.isEmpty()) {
-                displayText += "  •  Bắt đầu: " + formatDateTime(startTime);
-            }
 
             if (!endTime.isEmpty()) {
                 displayText += "  •  Kết thúc: " + formatDateTime(endTime);
             }
 
-            /*
-             * Lưu mapping:
-             * người dùng chọn displayText đẹp,
-             * nhưng khi mở Bidding thì truyền rawInfo.
-             */
             auctionInfoMap.put(displayText, rawInfo);
-
-            listAuctions.getItems().add(displayText);
+            listMyAuctions.getItems().add(displayText);
         }
 
-        if (listAuctions.getItems().isEmpty()) {
-            listAuctions.getItems().add("Không có phiên đấu giá nào đang mở");
+        if (listMyAuctions.getItems().isEmpty()) {
+            listMyAuctions.getItems().add("Bạn chưa tạo phiên đấu giá nào.");
         }
     }
 
     @FXML
-    private void handleOpenBidding() {
-        String selectedAuction = listAuctions.getSelectionModel().getSelectedItem();
+    private void handleOpenAuction() {
+        String selectedAuction = listMyAuctions.getSelectionModel().getSelectedItem();
 
         if (selectedAuction == null) {
             showAlert(Alert.AlertType.WARNING,
@@ -168,10 +153,10 @@ public class AuctionListController {
             return;
         }
 
-        if (selectedAuction.startsWith("Không có phiên")) {
+        if (selectedAuction.startsWith("Bạn chưa tạo")) {
             showAlert(Alert.AlertType.WARNING,
                     "Cảnh báo",
-                    "Hiện chưa có phiên đấu giá nào để tham gia!");
+                    "Bạn chưa có phiên đấu giá nào để xem!");
             return;
         }
 
@@ -184,21 +169,48 @@ public class AuctionListController {
 
             BiddingController biddingController = loader.getController();
 
-            String rawAuctionInfo = auctionInfoMap.getOrDefault(selectedAuction, selectedAuction);
-            biddingController.setAuctionInfo(rawAuctionInfo);
-            Stage stage = (Stage) listAuctions.getScene().getWindow();
+            String rawInfo = auctionInfoMap.getOrDefault(selectedAuction, selectedAuction);
+            biddingController.setAuctionInfo(rawInfo);
+
+            Stage stage = (Stage) listMyAuctions.getScene().getWindow();
 
             double currentWidth = stage.getWidth();
             double currentHeight = stage.getHeight();
 
             stage.setScene(new Scene(root, currentWidth, currentHeight));
-            stage.setTitle("Màn hình Đấu giá Trực tiếp");
+            stage.setTitle("Chi tiết phiên đấu giá");
             stage.show();
 
         } catch (IOException e) {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
-                    "Không mở được màn hình đấu giá!");
+                    "Không mở được màn chi tiết phiên!");
+            e.printStackTrace();
+        }
+    }
+
+    @FXML
+    private void handleBackToHome() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/home-view.fxml")
+            );
+
+            Parent root = loader.load();
+
+            Stage stage = (Stage) listMyAuctions.getScene().getWindow();
+
+            double currentWidth = stage.getWidth();
+            double currentHeight = stage.getHeight();
+
+            stage.setScene(new Scene(root, currentWidth, currentHeight));
+            stage.setTitle("Auction System - Home");
+            stage.show();
+
+        } catch (IOException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không quay lại được màn hình chính!");
             e.printStackTrace();
         }
     }
@@ -238,32 +250,6 @@ public class AuctionListController {
             return dateTime.format(formatter);
         } catch (Exception e) {
             return value;
-        }
-    }
-
-    @FXML
-    private void handleBackToHome() {
-        try {
-            FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/views/home-view.fxml")
-            );
-
-            Parent root = loader.load();
-
-            Stage stage = (Stage) listAuctions.getScene().getWindow();
-
-            double currentWidth = stage.getWidth();
-            double currentHeight = stage.getHeight();
-
-            stage.setScene(new Scene(root, currentWidth, currentHeight));
-            stage.setTitle("Auction System - Home");
-            stage.show();
-
-        } catch (IOException e) {
-            showAlert(Alert.AlertType.ERROR,
-                    "Lỗi",
-                    "Không quay lại được màn hình chính!");
-            e.printStackTrace();
         }
     }
 

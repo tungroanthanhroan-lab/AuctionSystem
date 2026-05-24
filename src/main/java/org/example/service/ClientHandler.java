@@ -88,8 +88,14 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("BID")) {
                 handleBid(command);
 
-            } else if (command.startsWith("CREATE_AUCTION")) {
-                handleCreateAuction(command);
+            } else if (command.startsWith("CLOSE_AUCTION")) {
+                handleCloseAuction(command);
+
+            } else if (command.startsWith("GET_BID_HISTORY")) {
+                handleGetBidHistory(command);
+
+            } else if (command.startsWith("MY_AUCTIONS")) {
+                handleMyAuctions();
 
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
@@ -108,11 +114,15 @@ public class ClientHandler implements Runnable, AuctionObserver {
             if (a.getItem() != null && a.getItem().getTitle() != null) {
                 title = a.getItem().getTitle();
             }
-
+            String endTime = "";
+            if (a.getItem()!=null && a.getItem().getEndTime() != null){
+                endTime = a.getItem().getEndTime();
+            }
             sb.append("|").append(a.getAuctionId())
                     .append(",").append(title)
                     .append(",").append(a.getCurrentHighestBid())
-                    .append(",").append(a.getStatus());
+                    .append(",").append(a.getStatus())
+                    .append(",").append(endTime);
         }
         sendResponse(sb.toString());
     }
@@ -225,6 +235,15 @@ public class ClientHandler implements Runnable, AuctionObserver {
             double amount = Double.parseDouble(parts[2]);
             String bidderName = loggedInUser.getUsername();
 
+            /*
+             * Không cho người tạo phiên tự đấu giá phiên của mình.
+             * Rule này phải nằm ở backend để tránh gian lận.
+             */
+            if (auctionService.isAuctionOwner(auctionId, loggedInUser.getId())) {
+                sendResponse("FAIL|Bạn không thể đấu giá phiên do chính mình tạo");
+                return;
+            }
+
             // FIX BUG 5: Chỉ gọi placeBid() — broadcast đã được thực hiện BÊN TRONG AuctionService.
             //            Không tạo thêm event hay gọi broadcast() ở đây nữa.
             boolean success = auctionService.placeBid(auctionId, bidderName, amount);
@@ -310,7 +329,129 @@ public class ClientHandler implements Runnable, AuctionObserver {
         out.writeObject(message);
         out.flush();
     }
+    /**
+     * Admin đóng phiên đấu giá.
+     *
+     * Protocol:
+     * CLOSE_AUCTION|auctionId
+     */
+    private void handleCloseAuction(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi đóng phiên");
+            return;
+        }
 
+        String[] parts = command.split("\\|");
+
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: CLOSE_AUCTION|auctionId");
+            return;
+        }
+
+        String auctionId = parts[1].trim();
+
+        /*
+         * Rule:
+         * - ADMIN được đóng mọi phiên.
+         * - USER chỉ được đóng phiên do chính mình tạo.
+         */
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedInUser.getRole());
+        boolean isOwner = auctionService.isAuctionOwner(auctionId, loggedInUser.getId());
+
+        if (!isAdmin && !isOwner) {
+            sendResponse("FAIL|Bạn chỉ có thể đóng phiên do chính mình tạo");
+            return;
+        }
+
+        boolean success = auctionService.closeAuction(auctionId);
+
+        if (success) {
+            sendResponse("SUCCESS|Phiên đấu giá đã được đóng thành công");
+        } else {
+            sendResponse("FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
+        }
+    }
+    /**
+     * Lấy lịch sử bid thật từ DB.
+     *
+     * Protocol:
+     * GET_BID_HISTORY|auctionId
+     *
+     * Response:
+     * BID_HISTORY|userA đã đặt 100.0 $ lúc ...|userB đã đặt 120.0 $ lúc ...
+     */
+    private void handleGetBidHistory(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi xem lịch sử đấu giá");
+            return;
+        }
+
+        String[] parts = command.split("\\|");
+
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: GET_BID_HISTORY|auctionId");
+            return;
+        }
+
+        try {
+            int auctionId = Integer.parseInt(parts[1].trim());
+
+            List<String> history = bidDAO.getBidHistory(auctionId);
+
+            StringBuilder sb = new StringBuilder("BID_HISTORY");
+
+            for (String line : history) {
+                sb.append("|").append(line);
+            }
+
+            sendResponse(sb.toString());
+
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|auctionId không hợp lệ");
+        }
+    }
+    /**
+     * Lấy danh sách phiên đấu giá do user hiện tại tạo.
+     *
+     * Protocol:
+     * MY_AUCTIONS
+     *
+     * Response:
+     * MY_AUCTIONS|auctionId,title,currentHighestBid,status,endTime
+     */
+    private void handleMyAuctions() throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi xem phiên của tôi");
+            return;
+        }
+
+        List<Auction> auctions = auctionService.getAuctionsBySellerId(loggedInUser.getId());
+
+        StringBuilder sb = new StringBuilder("MY_AUCTIONS");
+
+        for (Auction a : auctions) {
+            String title = "Không rõ sản phẩm";
+            String endTime = "";
+
+            if (a.getItem() != null) {
+                if (a.getItem().getTitle() != null) {
+                    title = a.getItem().getTitle();
+                }
+
+                if (a.getItem().getEndTime() != null) {
+                    endTime = a.getItem().getEndTime();
+                }
+            }
+
+            sb.append("|").append(a.getAuctionId())
+                    .append(",").append(title)
+                    .append(",").append(a.getCurrentHighestBid())
+                    .append(",").append(a.getStatus())
+                    .append(",").append(endTime);
+        }
+
+        sendResponse(sb.toString());
+    }
     private void cleanup() {
         try {
             auctionNotifier.removeObserver(this);
