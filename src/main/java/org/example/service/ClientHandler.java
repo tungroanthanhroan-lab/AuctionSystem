@@ -261,6 +261,55 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
+    /**
+     * Xử lý lệnh tạo phiên đấu giá mới — chỉ ADMIN mới được tạo.
+     *
+     * Format: CREATE_AUCTION|itemId|startingPrice|endTime
+     *   - itemId        : id của item (INTEGER)
+     *   - startingPrice : giá khởi điểm (DOUBLE)
+     *   - endTime       : thời gian kết thúc dạng ISO, ví dụ 2025-12-31T23:59
+     *
+     * Ví dụ: CREATE_AUCTION|5|1000000|2025-12-31T23:59
+     */
+    private void handleCreateAuction(String command) throws IOException {
+        // 1. Kiểm tra đăng nhập
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi tạo phiên đấu giá");
+            return;
+        }
+
+        // 2. Kiểm tra quyền ADMIN
+        if (!"ADMIN".equalsIgnoreCase(loggedInUser.getRole())) {
+            sendResponse("FAIL|Chỉ ADMIN mới được tạo phiên đấu giá");
+            return;
+        }
+
+        // 3. Tách tham số
+        String[] parts = command.split("\\|");
+        if (parts.length != 4) {
+            sendResponse("FAIL|Sai format. Dùng: CREATE_AUCTION|itemId|startingPrice|endTime");
+            return;
+        }
+
+        try {
+            int itemId = Integer.parseInt(parts[1]);
+            double startingPrice = Double.parseDouble(parts[2]);
+            String endTime = parts[3]; // ví dụ: 2025-12-31T23:59
+
+            // 4. Gọi Service — INSERT DB + put vào activeAuctions
+            boolean success = auctionService.createAuction(itemId, startingPrice, endTime);
+
+            if (success) {
+                sendResponse("SUCCESS|Phiên đấu giá đã được tạo thành công");
+            } else {
+                sendResponse("FAIL|Tạo phiên đấu giá thất bại. Kiểm tra itemId và endTime.");
+            }
+
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|itemId hoặc startingPrice không hợp lệ");
+        }
+    }
+
     /** Nhận event real-time từ AuctionNotifier, đẩy ngay về client */
     @Override
     public void onBidUpdate(BidUpdateEvent event) {

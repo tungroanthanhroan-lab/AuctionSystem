@@ -54,7 +54,9 @@ public class AuctionClient {
             });
 
             // Đọc lệnh từ bàn phím
-            System.out.println("Nhập lệnh (REGISTER|LOGIN|VIEW_ITEMS|BID|EXIT):");
+            System.out.println("Nhập lệnh (REGISTER|LOGIN|VIEW_ITEMS|BID|CREATE_AUCTION|EXIT):");
+            System.out.println("  Ví dụ tạo phiên: CREATE_AUCTION|itemId|startingPrice|endTime");
+            System.out.println("  (endTime dạng ISO: 2025-12-31T23:59, chỉ ADMIN mới dùng được)");
             Scanner scanner = new Scanner(System.in);
             while (scanner.hasNextLine()) {
                 String input = scanner.nextLine().trim();
