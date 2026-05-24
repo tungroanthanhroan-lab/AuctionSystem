@@ -89,6 +89,12 @@ public class AuctionDAO {
                 auction.setCurrentHighestBid(rs.getDouble("current_highest_bid"));
                 auction.setVersion(rs.getInt("version"));
 
+                // Khôi phục currentLeader từ DB nếu có (dùng Bidder chỉ có username)
+                String leaderName = rs.getString("current_leader");
+                if (leaderName != null && !leaderName.isEmpty()) {
+                    auction.setCurrentLeader(new org.example.model.Bidder(leaderName));
+                }
+
                 list.add(auction);
             }
         } catch (SQLException e) {

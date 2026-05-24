@@ -155,6 +155,39 @@ public class AuctionService {
     }
 
     /**
+     * Đóng một phiên đấu giá:
+     *   1. Tìm phiên trong RAM — trả về false nếu không tồn tại hoặc đã FINISHED.
+     *   2. Gọi Auction.closeAuction() để cập nhật trạng thái trên RAM (thread-safe qua ReentrantLock).
+     *   3. Gọi AuctionDAO.closeAuction() để persist status = 'FINISHED' xuống DB.
+     *   4. Xoá khỏi activeAuctions để VIEW_ITEMS không còn trả về phiên này.
+     *
+     * @param auctionId id phiên cần đóng (String)
+     * @return true nếu đóng thành công
+     */
+    public boolean closeAuction(String auctionId) {
+        Auction auction = activeAuctions.get(auctionId);
+        if (auction == null) {
+            System.out.println("[AuctionService] closeAuction: Không tìm thấy phiên " + auctionId);
+            return false;
+        }
+
+        // Cập nhật trạng thái trên RAM (dùng ReentrantLock bên trong)
+        auction.closeAuction();
+
+        // Persist xuống DB
+        boolean dbOk = auctionDAO.closeAuction(auctionId);
+        if (!dbOk) {
+            System.err.println("[AuctionService] closeAuction: DB không cập nhật được phiên " + auctionId);
+        }
+
+        // Xoá khỏi bộ nhớ để không còn nhận bid mới
+        activeAuctions.remove(auctionId);
+
+        System.out.println("[AuctionService] Đã đóng phiên đấu giá " + auctionId);
+        return true;
+    }
+
+    /**
      * Tạo phiên đấu giá mới:
      *   1. Build Auction object đầy đủ (status=OPEN, startTime=now)
      *   2. INSERT xuống DB qua DAO (DAO sẽ set lại auctionId từ generated key)
