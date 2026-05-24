@@ -225,6 +225,22 @@ public class AuctionDAO {
                     "OPEN"
             );
 
+            /*
+             * Set item vào auction để VIEW_ITEMS lấy được title ngay,
+             * không phải chờ restart server/load lại từ DB.
+             */
+            Item item = new Item(
+                    itemId,
+                    title,
+                    description,
+                    startingPrice,
+                    startingPrice,
+                    endTime,
+                    sellerId,
+                    "OPEN"
+            );
+
+            auction.setItem(item);
             auction.setCurrentHighestBid(startingPrice);
             auction.setVersion(0);
 
@@ -262,7 +278,94 @@ public class AuctionDAO {
             return false;
         }
     }
+    /**
+     * Kiểm tra user hiện tại có phải là người tạo/sở hữu phiên đấu giá không.
+     *
+     * Flow:
+     * auctions.item_id -> items.id -> items.seller_id
+     */
+    public boolean isAuctionOwner(String auctionId, int userId) {
+        String sql = "SELECT i.seller_id " +
+                "FROM auctions a " +
+                "JOIN items i ON a.item_id = i.id " +
+                "WHERE a.id = ?";
 
+        Connection conn = DatabaseConnection.getConnection();
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, auctionId);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    int sellerId = rs.getInt("seller_id");
+                    return sellerId == userId;
+                }
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi kiểm tra chủ phiên đấu giá: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+    /**
+     * Lấy danh sách phiên đấu giá do một user tạo.
+     *
+     * Flow:
+     * users.id -> items.seller_id -> auctions.item_id
+     */
+    public List<Auction> getAuctionsBySellerId(int sellerId) {
+        List<Auction> list = new ArrayList<>();
+
+        String sql = "SELECT a.*, i.title, i.description, i.starting_price, i.current_price, " +
+                "i.end_time, i.seller_id, i.status AS item_status " +
+                "FROM auctions a " +
+                "JOIN items i ON a.item_id = i.id " +
+                "WHERE i.seller_id = ? " +
+                "ORDER BY a.id DESC";
+
+        Connection conn = DatabaseConnection.getConnection();
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, sellerId);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    Auction auction = new Auction(
+                            rs.getInt("id"),
+                            rs.getInt("item_id"),
+                            rs.getString("start_time"),
+                            rs.getString("end_time"),
+                            rs.getString("status")
+                    );
+
+                    Item item = new Item(
+                            rs.getInt("item_id"),
+                            rs.getString("title"),
+                            rs.getString("description"),
+                            rs.getDouble("starting_price"),
+                            rs.getDouble("current_price"),
+                            rs.getString("end_time"),
+                            rs.getInt("seller_id"),
+                            rs.getString("item_status")
+                    );
+
+                    auction.setItem(item);
+                    auction.setCurrentHighestBid(rs.getDouble("current_highest_bid"));
+                    auction.setVersion(rs.getInt("version"));
+
+                    list.add(auction);
+                }
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi lấy danh sách phiên của user: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return list;
+    }
     /**
      * Tạo phiên đấu giá mới — INSERT vào DB và set generated ID trở lại Auction object.
      * Dùng RETURN_GENERATED_KEYS để lấy id tự tăng của SQLite.

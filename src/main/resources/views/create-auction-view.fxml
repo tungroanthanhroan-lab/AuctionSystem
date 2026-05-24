@@ -5,7 +5,9 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
-
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.layout.HBox?>
 <StackPane xmlns="http://javafx.com/javafx/21"
            xmlns:fx="http://javafx.com/fxml/1"
            fx:controller="org.example.controller.CreateAuctionController"
@@ -39,10 +41,22 @@
                    prefWidth="260"
                    prefHeight="42"/>
 
-        <TextField fx:id="txtEndTime"
-                   promptText="Thời gian kết thúc, ví dụ: 2026-12-31T23:59"
-                   prefWidth="260"
-                   prefHeight="42"/>
+        <DatePicker fx:id="datePickerEndDate"
+                    promptText="Chọn ngày kết thúc"
+                    prefWidth="260"
+                    prefHeight="42"/>
+
+        <HBox spacing="10" alignment="CENTER">
+            <ComboBox fx:id="cbHour"
+                      promptText="Giờ"
+                      prefWidth="125"
+                      prefHeight="42"/>
+
+            <ComboBox fx:id="cbMinute"
+                      promptText="Phút"
+                      prefWidth="125"
+                      prefHeight="42"/>
+        </HBox>
 
         <Button fx:id="btnCreate"
                 text="Tạo phiên"
