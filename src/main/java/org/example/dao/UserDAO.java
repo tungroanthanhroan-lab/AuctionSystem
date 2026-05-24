@@ -164,4 +164,69 @@ public class UserDAO {
             throw new RuntimeException("SHA-256 không khả dụng", e);
         }
     }
+
+    /**
+     * Lấy số dư hiện tại của User.
+     * @return số dư, hoặc -1 nếu lỗi / không tìm thấy user
+     */
+    public double getBalance(String username) {
+        String sql = "SELECT balance FROM users WHERE username = ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("balance");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi getBalance: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    /**
+     * Nạp tiền vào tài khoản (cộng thêm vào số dư hiện có).
+     * @param amount phải > 0
+     */
+    public boolean updateBalance(String username, double amount) {
+        String sql = "UPDATE users SET balance = balance + ? WHERE username = ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setDouble(1, amount);
+            pstmt.setString(2, username);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi updateBalance: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * Đổi mật khẩu — xác thực mật khẩu cũ trước, sau đó lưu hash mới.
+     * @return true nếu thành công, false nếu sai mật khẩu cũ hoặc lỗi DB
+     */
+    public boolean changePassword(String username, String oldPassword, String newPassword) {
+        // Xác thực mật khẩu cũ
+        User user = login(username, oldPassword);
+        if (user == null) {
+            return false;
+        }
+
+        String hashedNewPassword = hashPassword(newPassword);
+        String sql = "UPDATE users SET password = ? WHERE username = ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, hashedNewPassword);
+            pstmt.setString(2, username);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi changePassword: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
 }
+

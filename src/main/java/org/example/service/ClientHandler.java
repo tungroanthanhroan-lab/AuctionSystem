@@ -99,6 +99,15 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("GET_BID_HISTORY")) {
                 handleGetBidHistory(command);
 
+            } else if (command.startsWith("CHANGE_PASSWORD")) {
+                handleChangePassword(command);
+
+            } else if (command.startsWith("DEPOSIT")) {
+                handleDeposit(command);
+
+            } else if (command.startsWith("CHECK_BALANCE")) {
+                handleCheckBalance(command);
+
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
@@ -326,6 +335,64 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
         } catch (NumberFormatException e) {
             sendResponse("FAIL|auctionId không hợp lệ");
+        }
+    }
+
+    private void handleChangePassword(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        String[] parts = command.split("\\|");
+        if (parts.length != 3) {
+            sendResponse("FAIL|Sai format. Dùng: CHANGE_PASSWORD|oldPass|newPass");
+            return;
+        }
+        boolean success = userService.changePassword(loggedInUser.getUsername(), parts[1], parts[2]);
+        if (success) {
+            sendResponse("SUCCESS|Đổi mật khẩu thành công");
+        } else {
+            sendResponse("FAIL|Sai mật khẩu cũ");
+        }
+    }
+
+    private void handleDeposit(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        String[] parts = command.split("\\|");
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: DEPOSIT|amount");
+            return;
+        }
+        try {
+            double amount = Double.parseDouble(parts[1]);
+            if (amount <= 0) {
+                sendResponse("FAIL|Số tiền nạp phải lớn hơn 0");
+                return;
+            }
+            boolean success = userService.updateBalance(loggedInUser.getUsername(), amount);
+            if (success) {
+                sendResponse("SUCCESS|Nạp tiền thành công");
+            } else {
+                sendResponse("FAIL|Có lỗi xảy ra khi nạp tiền");
+            }
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|Số tiền không hợp lệ");
+        }
+    }
+
+    private void handleCheckBalance(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        double balance = userService.getBalance(loggedInUser.getUsername());
+        if (balance >= 0) {
+            sendResponse("BALANCE|" + balance);
+        } else {
+            sendResponse("FAIL|Lỗi khi lấy số dư");
         }
     }
 
