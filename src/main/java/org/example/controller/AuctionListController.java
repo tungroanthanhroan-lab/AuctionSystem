@@ -126,6 +126,10 @@ public class AuctionListController {
                     + " - Giá hiện tại: " + currentPrice + "$"
                     + " - Trạng thái: " + status;
 
+            if (!currentLeader.isEmpty() && !currentLeader.equals("-")) {
+                rawInfo += " - Người dẫn đầu: " + currentLeader;
+            }
+
             if (!endTime.isEmpty()) {
                 rawInfo += " - Kết thúc: " + endTime;
             }
