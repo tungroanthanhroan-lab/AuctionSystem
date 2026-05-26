@@ -1,0 +1,32 @@
+name: Node.js CI (Protected Main Branch)
+
+# Cấu hình điều kiện kích hoạt robot
+on:
+  # 1. Tự động chạy mỗi khi push code lên BẤT KỲ nhánh phụ nào
+  push:
+    branches:
+      - '*'         # Áp dụng cho tất cả các nhánh
+      - '!master'     # Loại trừ nhánh master
+
+  # 2. Tự động chạy khi có Pull Request nhắm vào nhánh master
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Cài đặt các gói thư viện
+        run: npm install
+
+      - name: Chạy thử lệnh Build xem có lỗi không
+        run: npm run build
