@@ -1,0 +1,31 @@
+name: Node.js CI (Protected Main Branch)
+
+# Cấu hình điều kiện kích hoạt robot
+on:
+  # 1. Tự động chạy mỗi khi push code lên BẤT KỲ nhánh phụ nào
+  push:
+    branches:
+      - '*'         # Áp dụng cho tất cả các nhánh
+      - '!master'     # Loại trừ nhánh master
+
+  # 2. Tự động chạy khi có Pull Request nhắm vào nhánh master
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Chạy trên máy ảo Ubuntu của GitHub
+
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4 # Kéo code về máy ảo
+
+      - name: Cài đặt Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin' # Bản phân phối Java phổ biến và ổn định nhất
+          cache: maven            # Bật cache để những lần sau Maven tải thư viện nhanh hơn
+
+      - name: Kiểm tra và Build dự án bằng Maven
+        run: mvn clean package
