@@ -104,14 +104,17 @@ public class AuctionListController {
             String currentPrice = fields[2].trim();
             String status = fields[3].trim();
 
-            String startTime = "";
+            String currentLeader = "";
             String endTime = "";
-
-            if (fields.length == 5) {
-                endTime = fields[4].trim();
-            } else if (fields.length >= 6) {
-                startTime = fields[4].trim();
+            /*
+             * Backend hiện tại:
+             * auctionId,title,currentPrice,status,currentLeader,endTime
+             */
+            if (fields.length >= 6) {
+                currentLeader = fields[4].trim();
                 endTime = fields[5].trim();
+            } else if (fields.length == 5) {
+                endTime = fields[4].trim();
             }
 
             /*
@@ -134,8 +137,8 @@ public class AuctionListController {
                     + "  •  Giá: " + currentPrice + "$"
                     + "  •  " + formatStatus(status);
 
-            if (!startTime.isEmpty()) {
-                displayText += "  •  Bắt đầu: " + formatDateTime(startTime);
+            if (!currentLeader.isEmpty() && !currentLeader.equals("-")) {
+                displayText += "  •  Dẫn đầu: " + currentLeader;
             }
 
             if (!endTime.isEmpty()) {

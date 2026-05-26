@@ -1,29 +1,29 @@
 package org.example.controller;
 
-import org.example.service.AuctionDataStore;
-import javafx.scene.control.Button;
-import javafx.scene.input.KeyCode;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.application.Platform;
+import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.stage.Stage;
-import java.io.IOException;
-import javafx.scene.control.ListView;
-import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
-import javafx.scene.control.TextField;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.application.Platform;
-import org.example.service.NetworkService;
-import org.example.service.AppSession;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
+import javafx.scene.control.ListView;
+import javafx.scene.control.TextField;
+import javafx.scene.input.KeyCode;
+import javafx.stage.Stage;
 import javafx.util.Duration;
+import org.example.service.AppSession;
+import org.example.service.AuctionDataStore;
+import org.example.service.NetworkService;
 
-
+import java.io.IOException;
 import java.time.LocalDateTime;
+
 public class BiddingController {
-    //khai bao cac thanh phan co fx:id ben file FXML
+
     @FXML
     private Label lblTenSanPham;
 
@@ -44,68 +44,38 @@ public class BiddingController {
 
     @FXML
     private Button btnQuayLai;
+
     @FXML
     private Label lblCountdown;
-
-    private Timeline countdownTimeline;
-    private LocalDateTime auctionEndTime;
-    private Timeline refreshTimeline;
-
-    // Tên phiên đấu giá hiện tại đang được mở
-
-    private String auctionName;
-    private String currentAuctionId;
 
     @FXML
     private Label lblTrangThai;
 
     @FXML
     private Button btnDongPhien;
+
+    private Timeline countdownTimeline;
+    private Timeline refreshTimeline;
+
+    private LocalDateTime auctionEndTime;
+
+    private String auctionName;
+    private String currentAuctionId;
+
     private boolean phienDangMo = true;
-    // Dùng để gửi dữ liệu từ màn hình đấu giá lên server
-    private NetworkService networkService = new NetworkService();
-    //tam
+
+    private final NetworkService networkService = new NetworkService();
+
     private double giaHienTai = 0.0;
 
     @FXML
     public void setAuctionInfo(String auctionInfo) {
         try {
-            /*
-             * auctionInfo có thể có dạng:
-             * "2 - Laptop Gaming - Giá hiện tại: 1000.0$ - Trạng thái: OPEN"
-             *
-             * Hoặc dạng cũ:
-             * "2 - Laptop Gaming - Giá hiện tại: 1000.0$"
-             *
-             * Mục tiêu:
-             * 1. Lấy tên phiên:
-             *    "2 - Laptop Gaming"
-             *
-             * 2. Lấy giá hiện tại:
-             *    1000.0
-             *
-             * 3. Lấy trạng thái nếu có:
-             *    OPEN / RUNNING / FINISHED / CLOSED
-             */
-
-            // Lưu toàn bộ chuỗi gốc để các hàm khác vẫn có thể dùng nếu cần
             String originalAuctionInfo = auctionInfo;
 
-            /*
-             * Tách chuỗi để lấy phần tên phiên.
-             * Ví dụ:
-             * "2 - Laptop Gaming - Giá hiện tại: 1000.0$ - Trạng thái: OPEN"
-             * mainParts[0] = "2 - Laptop Gaming"
-             */
             String[] mainParts = auctionInfo.split(" - Giá hiện tại:");
             auctionName = mainParts[0].trim();
 
-            /*
-             * auctionName có dạng:
-             * "2 - Laptop Gaming"
-             *
-             * Lấy auctionId để refresh đúng phiên từ server.
-             */
             String[] auctionNameParts = auctionName.split(" - ", 2);
             currentAuctionId = auctionNameParts[0].trim();
 
@@ -118,21 +88,10 @@ public class BiddingController {
 
             lblTenSanPham.setText(displayTitle);
 
-            /*
-             * Load giá hiện tại từ chuỗi auctionInfo do AuctionList truyền sang.
-             * Không dùng AuctionDataStore.getPrice() nữa vì dữ liệu thật đang lấy từ server.
-             */
             giaHienTai = 0.0;
 
             if (mainParts.length > 1) {
                 String priceAndStatusPart = mainParts[1];
-
-                /*
-                 * priceAndStatusPart ví dụ:
-                 * " 1000.0$ - Trạng thái: OPEN"
-                 *
-                 * Tách tiếp theo dấu "$" để lấy phần giá.
-                 */
                 String priceText = priceAndStatusPart.split("\\$")[0].trim();
                 giaHienTai = Double.parseDouble(priceText);
             }
@@ -140,70 +99,64 @@ public class BiddingController {
             lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
 
             /*
-             * Load người dẫn đầu.
+             * Ưu tiên lấy người dẫn đầu từ chuỗi server truyền sang.
              *
-             * Hiện tại VIEW_ITEMS chưa trả current_leader,
-             * nên tạm hiển thị từ AuctionDataStore nếu có.
-             * Nếu không có dữ liệu local thì hiển thị "Chưa có".
+             * Ví dụ:
+             * "... - Người dẫn đầu: admin - Kết thúc: 2026-05-30T23:59"
              */
-            String highestBidder = AuctionDataStore.getHighestBidder(auctionName);
+            String highestBidder = "Chưa có";
 
-            if (highestBidder == null || highestBidder.trim().isEmpty()) {
-                highestBidder = "Chưa có";
+            if (originalAuctionInfo.contains("Người dẫn đầu:")) {
+                highestBidder = originalAuctionInfo
+                        .substring(originalAuctionInfo.indexOf("Người dẫn đầu:") + "Người dẫn đầu:".length())
+                        .trim();
+
+                if (highestBidder.contains(" - Kết thúc:")) {
+                    highestBidder = highestBidder.substring(0, highestBidder.indexOf(" - Kết thúc:")).trim();
+                }
+
+                if (highestBidder.contains(" - Trạng thái:")) {
+                    highestBidder = highestBidder.substring(0, highestBidder.indexOf(" - Trạng thái:")).trim();
+                }
+
+                if (highestBidder.isEmpty() || highestBidder.equals("-")) {
+                    highestBidder = "Chưa có";
+                }
+            } else {
+                String localHighestBidder = AuctionDataStore.getHighestBidder(auctionName);
+
+                if (localHighestBidder != null && !localHighestBidder.trim().isEmpty()) {
+                    highestBidder = localHighestBidder;
+                }
             }
 
             lblNguoiDanDau.setText("Người dẫn đầu: " + highestBidder);
 
-            /*
-/*
- * Load lịch sử bid thật từ server.
- * Nếu backend lỗi thì hàm sẽ tự bỏ qua, không làm crash UI.
- */
             loadBidHistoryFromServer();
 
-            /*
-             * Load trạng thái phiên.
-             *
-             * Ưu tiên đọc trạng thái từ chuỗi server trả:
-             * "Trạng thái: OPEN"
-             *
-             * Nếu không có trạng thái trong chuỗi thì fallback về AuctionDataStore.
-             */
-            /*
-             * Load trạng thái phiên và thời gian kết thúc.
-             *
-             * auctionInfo có dạng:
-             * "1 - hee loo - Giá hiện tại: 2.0$ - Trạng thái: OPEN - Kết thúc: 2026-05-30T23:59"
-             */
             String status = null;
             String endTimeText = null;
 
-            /*
-             * Lấy endTime trước.
-             */
             if (originalAuctionInfo.contains("Kết thúc:")) {
                 endTimeText = originalAuctionInfo
                         .substring(originalAuctionInfo.indexOf("Kết thúc:") + "Kết thúc:".length())
                         .trim();
             }
 
-            /*
-             * Lấy status.
-             * Nếu sau status có phần " - Kết thúc:" thì cắt bỏ phần đó.
-             */
             if (originalAuctionInfo.contains("Trạng thái:")) {
                 status = originalAuctionInfo
                         .substring(originalAuctionInfo.indexOf("Trạng thái:") + "Trạng thái:".length())
                         .trim();
+
+                if (status.contains(" - Người dẫn đầu:")) {
+                    status = status.substring(0, status.indexOf(" - Người dẫn đầu:")).trim();
+                }
 
                 if (status.contains(" - Kết thúc:")) {
                     status = status.substring(0, status.indexOf(" - Kết thúc:")).trim();
                 }
             }
 
-            /*
-             * Xử lý trạng thái.
-             */
             if (status != null && !status.isEmpty()) {
                 phienDangMo = status.equalsIgnoreCase("OPEN")
                         || status.equalsIgnoreCase("RUNNING")
@@ -218,9 +171,6 @@ public class BiddingController {
                 }
 
             } else {
-                /*
-                 * Fallback cho dữ liệu demo cũ nếu chuỗi không có trạng thái.
-                 */
                 phienDangMo = AuctionDataStore.isAuctionOpen(auctionName);
 
                 if (phienDangMo) {
@@ -232,12 +182,9 @@ public class BiddingController {
                 }
             }
 
-            /*
-             * Xử lý countdown.
-             */
-            if (endTimeText != null && !endTimeText.isEmpty()) {
+            if (endTimeText != null && !endTimeText.isEmpty() && !endTimeText.equals("-")) {
                 try {
-                    auctionEndTime = LocalDateTime.parse(endTimeText);
+                    auctionEndTime = LocalDateTime.parse(endTimeText.trim().replace(" ", "T"));
                     startCountdown();
                 } catch (Exception parseException) {
                     lblCountdown.setText("Thời gian còn lại: Không xác định");
@@ -249,13 +196,11 @@ public class BiddingController {
                 System.out.println("auctionInfo không có endTime: " + originalAuctionInfo);
             }
 
-            /*
-             * Bật/tắt các nút theo trạng thái phiên.
-             */
             txtNhapGia.setDisable(!phienDangMo);
             btnDatGia.setDisable(!phienDangMo);
+
             /*
-             * Tạm thời cho cả ADMIN và USER thấy nút Đóng phiên.
+             * Cho cả ADMIN và USER thấy nút Đóng phiên.
              * Backend sẽ kiểm tra quyền thật:
              * - ADMIN đóng mọi phiên
              * - USER chỉ đóng phiên do chính mình tạo
@@ -263,13 +208,10 @@ public class BiddingController {
             btnDongPhien.setVisible(true);
             btnDongPhien.setManaged(true);
             btnDongPhien.setDisable(!phienDangMo);
+
             startAutoRefresh();
 
         } catch (Exception e) {
-            /*
-             * Nếu chuỗi truyền vào lỗi format,
-             * vẫn hiển thị thông tin cơ bản để tránh crash.
-             */
             auctionName = auctionInfo;
             lblTenSanPham.setText("Sản phẩm: " + auctionInfo);
 
@@ -285,6 +227,7 @@ public class BiddingController {
 
             txtNhapGia.setDisable(false);
             btnDatGia.setDisable(false);
+
             btnDongPhien.setVisible(true);
             btnDongPhien.setManaged(true);
             btnDongPhien.setDisable(false);
@@ -292,11 +235,11 @@ public class BiddingController {
             e.printStackTrace();
         }
     }
+
     @FXML
     public void handleDatGia() {
         String inputStr = txtNhapGia.getText();
 
-        // Nếu phiên đã đóng thì không cho đặt giá nữa
         if (!phienDangMo) {
             hienThiPopup(Alert.AlertType.ERROR,
                     "Phiên đã đóng",
@@ -304,7 +247,6 @@ public class BiddingController {
             return;
         }
 
-        // Kiểm tra nếu không nhập gì hoặc nhập toàn dấu cách mà vẫn bấm nút đặt giá
         if (inputStr == null || inputStr.trim().isEmpty()) {
             hienThiPopup(Alert.AlertType.WARNING,
                     "Cảnh báo",
@@ -315,7 +257,6 @@ public class BiddingController {
         try {
             double giaDat = Double.parseDouble(inputStr.trim());
 
-            // Bắt lỗi đặt giá thấp hơn hoặc bằng giá hiện tại
             if (giaDat <= giaHienTai) {
                 hienThiPopup(Alert.AlertType.ERROR,
                         "Lỗi đặt giá",
@@ -325,40 +266,28 @@ public class BiddingController {
 
             String username = AppSession.getCurrentUsername();
 
-            /*
-             * Backend mới cần format:
-             * BID|auctionId|amount
-             *
-             * Tạm thời auctionName đang có dạng:
-             * "2 - Laptop Gaming"
-             * nên lấy auctionId bằng phần trước dấu " - "
-             */
             String auctionId = auctionName.split(" - ")[0].trim();
-
             String message = "BID|" + auctionId + "|" + giaDat;
 
-            // Gửi giá đặt lên server thông qua NetworkService
             String response = networkService.sendMessage(message);
 
             System.out.println("Server trả về: " + response);
 
-            // Nếu không kết nối được server thì báo lỗi
+            if (response == null || response.trim().isEmpty()) {
+                hienThiPopup(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        "Server không trả về phản hồi!");
+                return;
+            }
+
             if (response.startsWith("ERROR")) {
                 hienThiPopup(Alert.AlertType.ERROR,
                         "Lỗi kết nối",
                         response.replace("ERROR|", ""));
                 return;
             }
-            /*
-             * Nếu server từ chối bid thì KHÔNG cập nhật UI.
-             * Tránh lỗi popup báo FAIL nhưng giá vẫn đổi.
-             */
+
             if (response.startsWith("FAIL")) {
-                /*
-                 * Nếu server từ chối bid, rất có thể giá hiện tại trên server
-                 * đã cao hơn giá UI đang hiển thị.
-                 * Vì vậy refresh lại phiên hiện tại ngay để UI bắt kịp server.
-                 */
                 refreshCurrentAuctionFromServer();
 
                 hienThiPopup(Alert.AlertType.WARNING,
@@ -367,12 +296,7 @@ public class BiddingController {
 
                 return;
             }
-            /*
-             * Chỉ khi server trả SUCCESS mới cập nhật:
-             * - giá hiện tại
-             * - người dẫn đầu
-             * - lịch sử đặt giá
-             */
+
             if (response.startsWith("SUCCESS")) {
                 giaHienTai = giaDat;
 
@@ -381,10 +305,6 @@ public class BiddingController {
                 lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
                 lblNguoiDanDau.setText("Người dẫn đầu: " + username);
 
-                /*
-                 * Sau khi server ghi bid thành công,
-                 * load lại lịch sử thật từ DB.
-                 */
                 loadBidHistoryFromServer();
 
                 txtNhapGia.clear();
@@ -396,30 +316,36 @@ public class BiddingController {
                 return;
             }
 
-            // Trường hợp server trả response lạ
             hienThiPopup(Alert.AlertType.WARNING,
                     "Phản hồi không xác định",
                     response);
 
         } catch (NumberFormatException e) {
-            // Lỗi nhập liệu của người dùng: chữ, ký tự, v.v.
             hienThiPopup(Alert.AlertType.ERROR,
                     "Lỗi nhập liệu",
                     "Vui lòng chỉ nhập số (ví dụ: 1000), không nhập chữ!");
         }
     }
-    //----chuẩn bị cho realtime----
-    //phần này được gọi khi có người đặt giá cao hơn
+
     public void nhanGiaMoiTuServer(double giaMoi) {
         this.giaHienTai = giaMoi;
-        capNhatGiaTrenUI(giaMoi);
+        capNhatGiaTrenUI(giaMoi, null);
     }
-    //Platform.runlater để tránh crash khi luồng ngầm đổi giao diện
-    private void capNhatGiaTrenUI(double giaMoi) {
+
+    private void capNhatGiaTrenUI(double giaMoi, String currentLeader) {
         Platform.runLater(() -> {
             lblGiaHienTai.setText("Giá hiện tại: " + giaMoi + " $");
+
+            if (currentLeader != null
+                    && !currentLeader.trim().isEmpty()
+                    && !currentLeader.equals("-")) {
+                lblNguoiDanDau.setText("Người dẫn đầu: " + currentLeader);
+            } else {
+                lblNguoiDanDau.setText("Người dẫn đầu: Chưa có");
+            }
         });
     }
+
     private void startCountdown() {
         if (countdownTimeline != null) {
             countdownTimeline.stop();
@@ -473,6 +399,7 @@ public class BiddingController {
                 String.format("Thời gian còn lại: %02d:%02d:%02d", hours, minutes, secs)
         );
     }
+
     private void startAutoRefresh() {
         if (refreshTimeline != null) {
             refreshTimeline.stop();
@@ -480,9 +407,6 @@ public class BiddingController {
 
         refreshTimeline = new Timeline(
                 new KeyFrame(Duration.seconds(2), event -> {
-                    /*
-                     * Chạy network ở thread riêng để không làm đơ giao diện JavaFX.
-                     */
                     new Thread(() -> refreshCurrentAuctionFromServer()).start();
                 })
         );
@@ -490,6 +414,7 @@ public class BiddingController {
         refreshTimeline.setCycleCount(Timeline.INDEFINITE);
         refreshTimeline.play();
     }
+
     private void refreshCurrentAuctionFromServer() {
         try {
             if (currentAuctionId == null || currentAuctionId.trim().isEmpty()) {
@@ -511,9 +436,8 @@ public class BiddingController {
                 String[] fields = auctionData.split(",", -1);
 
                 /*
-                 * Format hiện tại:
-                 * auctionId,title,currentHighestBid,status,endTime
-                 * hoặc auctionId,title,currentHighestBid,status,startTime,endTime
+                 * Format backend hiện tại:
+                 * auctionId,title,currentHighestBid,status,currentLeader,endTime
                  */
                 if (fields.length < 4) {
                     continue;
@@ -528,13 +452,17 @@ public class BiddingController {
                 double serverPrice = Double.parseDouble(fields[2].trim());
                 String status = fields[3].trim();
 
+                String currentLeader = "";
                 String refreshedEndTime = "";
-                if (fields.length == 5) {
-                    refreshedEndTime = fields[4].trim();
-                } else if (fields.length >= 6) {
+
+                if (fields.length >= 6) {
+                    currentLeader = fields[4].trim();
                     refreshedEndTime = fields[5].trim();
+                } else if (fields.length == 5) {
+                    refreshedEndTime = fields[4].trim();
                 }
 
+                String finalCurrentLeader = currentLeader;
                 String finalRefreshedEndTime = refreshedEndTime;
 
                 Platform.runLater(() -> {
@@ -542,18 +470,23 @@ public class BiddingController {
                         giaHienTai = serverPrice;
 
                         lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
-                        lblNguoiDanDau.setText("Người dẫn đầu: Đã cập nhật từ server");
 
-                        /*
-                         * Giá thay đổi nghĩa là có bid mới,
-                         * load lại lịch sử bid thật từ DB.
-                         */
+                        if (finalCurrentLeader != null
+                                && !finalCurrentLeader.trim().isEmpty()
+                                && !finalCurrentLeader.equals("-")) {
+                            lblNguoiDanDau.setText("Người dẫn đầu: " + finalCurrentLeader);
+                        } else {
+                            lblNguoiDanDau.setText("Người dẫn đầu: Chưa có");
+                        }
+
                         loadBidHistoryFromServer();
 
                         System.out.println("[AutoRefresh] Đã cập nhật giá mới: " + giaHienTai);
                     }
 
-                    if (finalRefreshedEndTime != null && !finalRefreshedEndTime.isEmpty()) {
+                    if (finalRefreshedEndTime != null
+                            && !finalRefreshedEndTime.isEmpty()
+                            && !finalRefreshedEndTime.equals("-")) {
                         try {
                             auctionEndTime = LocalDateTime.parse(finalRefreshedEndTime.trim().replace(" ", "T"));
                         } catch (Exception ignored) {
@@ -584,41 +517,34 @@ public class BiddingController {
             System.out.println("[AutoRefresh] Không refresh được phiên hiện tại: " + e.getMessage());
         }
     }
-    //hàm hỗ trợ bật Popup
-    private void hienThiPopup(Alert.AlertType loaiPopup, String tieuDe, String noiDung){
+
+    private void hienThiPopup(Alert.AlertType loaiPopup, String tieuDe, String noiDung) {
         Alert alert = new Alert(loaiPopup);
         alert.setTitle(tieuDe);
         alert.setHeaderText(null);
         alert.setContentText(noiDung);
         alert.showAndWait();
     }
-    /**
-     * Hàm này chạy khi người dùng bấm nút "QUAY LẠI DANH SÁCH".
-     * Nhiệm vụ:
-     * - Load lại màn hình auction-list-view.fxml
-     * - Lấy cửa sổ hiện tại
-     * - Thay scene hiện tại bằng scene danh sách đấu giá
-     */
+
     @FXML
     private void handleBackToAuctionList() {
         if (countdownTimeline != null) {
             countdownTimeline.stop();
         }
+
         if (refreshTimeline != null) {
             refreshTimeline.stop();
         }
+
         try {
-            // Load file giao diện danh sách phiên đấu giá
             FXMLLoader loader = new FXMLLoader(
                     getClass().getResource("/views/auction-list-view.fxml")
             );
 
             Parent root = loader.load();
 
-            // Lấy cửa sổ hiện tại thông qua một thành phần đang có trên màn hình
             Stage stage = (Stage) lblGiaHienTai.getScene().getWindow();
 
-            // Chuyển scene hiện tại sang màn hình danh sách đấu giá
             double currentWidth = stage.getWidth();
             double currentHeight = stage.getHeight();
 
@@ -627,22 +553,16 @@ public class BiddingController {
             stage.show();
 
         } catch (IOException e) {
-            // Nếu không load được file FXML thì hiện popup lỗi
             hienThiPopup(Alert.AlertType.ERROR,
                     "Lỗi",
                     "Không thể quay lại danh sách đấu giá!");
             e.printStackTrace();
         }
     }
+
     @FXML
     private void handleDongPhien() {
         try {
-            /*
-             * auctionName có dạng:
-             * "5 - nak vt"
-             *
-             * Lấy auctionId là phần trước dấu " - ".
-             */
             String auctionId = auctionName.split(" - ")[0].trim();
 
             Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
@@ -660,6 +580,13 @@ public class BiddingController {
             String response = networkService.sendMessage(message);
 
             System.out.println("Server trả về khi đóng phiên: " + response);
+
+            if (response == null || response.trim().isEmpty()) {
+                hienThiPopup(Alert.AlertType.ERROR,
+                        "Lỗi",
+                        "Server không trả về phản hồi!");
+                return;
+            }
 
             if (response.startsWith("ERROR")) {
                 hienThiPopup(Alert.AlertType.ERROR,
@@ -711,10 +638,9 @@ public class BiddingController {
             e.printStackTrace();
         }
     }
+
     @FXML
     public void initialize() {
-        // Khi đang ở ô nhập giá:
-        // Bấm mũi tên xuống hoặc Enter thì chuyển focus xuống nút ĐẶT GIÁ
         txtNhapGia.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
                 btnDatGia.requestFocus();
@@ -722,9 +648,6 @@ public class BiddingController {
             }
         });
 
-        // Khi đang ở nút ĐẶT GIÁ:
-        // Bấm mũi tên xuống thì chuyển focus xuống nút QUAY LẠI
-        // Bấm Enter thì đặt giá
         btnDatGia.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.DOWN) {
                 if (btnDongPhien.isVisible()) {
@@ -743,6 +666,7 @@ public class BiddingController {
                 event.consume();
             }
         });
+
         btnDongPhien.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.DOWN) {
                 btnQuayLai.requestFocus();
@@ -758,9 +682,6 @@ public class BiddingController {
             }
         });
 
-        // Khi đang ở nút QUAY LẠI:
-        // Bấm mũi tên lên thì quay lại nút ĐẶT GIÁ
-        // Bấm Enter thì quay lại danh sách đấu giá
         btnQuayLai.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
                 if (btnDongPhien.isVisible()) {
@@ -776,6 +697,7 @@ public class BiddingController {
             }
         });
     }
+
     private void loadBidHistoryFromServer() {
         try {
             if (currentAuctionId == null || currentAuctionId.trim().isEmpty()) {
@@ -791,10 +713,6 @@ public class BiddingController {
             }
 
             if (response.startsWith("ERROR") || response.startsWith("FAIL")) {
-                /*
-                 * Nếu backend chưa có hoặc lỗi, không popup liên tục.
-                 * Giữ lịch sử local/demo hiện tại.
-                 */
                 System.out.println("[BidHistory] Không lấy được lịch sử từ server: " + response);
                 return;
             }
@@ -807,13 +725,33 @@ public class BiddingController {
 
             String[] parts = response.split("\\|");
 
-            if (parts.length == 1) {
+            /*
+             * Format backend mới:
+             * BID_HISTORY|auctionId|userId,username,bidAmount,bidTime|...
+             *
+             * parts[0] = BID_HISTORY
+             * parts[1] = auctionId
+             * parts[2...] = lịch sử bid thật
+             */
+            if (parts.length <= 2) {
                 listLichSuBid.getItems().add("Chưa có lượt đặt giá nào.");
                 return;
             }
 
-            for (int i = 1; i < parts.length; i++) {
-                listLichSuBid.getItems().add(parts[i]);
+            for (int i = 2; i < parts.length; i++) {
+                String[] fields = parts[i].split(",", -1);
+
+                if (fields.length >= 4) {
+                    String username = fields[1].trim();
+                    String amount = fields[2].trim();
+                    String time = fields[3].trim();
+
+                    listLichSuBid.getItems().add(
+                            username + " đã đặt " + amount + " $ lúc " + time
+                    );
+                } else {
+                    listLichSuBid.getItems().add(parts[i]);
+                }
             }
 
         } catch (Exception e) {
