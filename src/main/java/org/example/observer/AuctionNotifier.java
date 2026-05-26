@@ -9,10 +9,10 @@ import java.util.concurrent.Executors;
  * Quản lý danh sách Observer và phát sóng sự kiện đấu giá real-time.
  *
  * Bỏ "implements AuctionObserver" — Notifier KHÔNG phải Observer.
- *            Notifier là subject/publisher trong Observer Pattern.
+ * Notifier là subject/publisher trong Observer Pattern.
  *
  * Thay new Thread() bằng ExecutorService có giới hạn thread pool
- *             để tránh OOM khi có nhiều client kết nối đồng thời.
+ * để tránh OOM khi có nhiều client kết nối đồng thời.
  */
 public class AuctionNotifier {
 
@@ -62,11 +62,11 @@ public class AuctionNotifier {
         System.out.println("[Notifier] Đóng thông báo");
     }
 
-    /** @deprecated Dùng addObserver() thay thế */
+    /** @deprecated Dùng addObserver() thay thế (giữ lại để tương thích code cũ) */
     @Deprecated
     public void addObserve(AuctionObserver observer) { addObserver(observer); }
 
-    /** @deprecated Dùng removeObserver() thay thế */
+    /** @deprecated Dùng removeObserver() thay thế (giữ lại để tương thích code cũ) */
     @Deprecated
     public void removeObserve(AuctionObserver observer) { removeObserver(observer); }
 }

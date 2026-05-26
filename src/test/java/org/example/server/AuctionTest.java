@@ -44,15 +44,17 @@ public class AuctionTest {
      */
     @BeforeEach
     public void setUp() {
+        // FIX: Bidder dùng constructor đầy đủ (id, username, password, role, balance)
         alice = new Bidder(1, "Alice", "pass", "BIDDER", 1000.0);
         bob   = new Bidder(2, "Bob",   "pass", "BIDDER", 800.0);
 
         notifier = new AuctionNotifier();
 
+        // FIX: Item dùng constructor đầy đủ (id, title, description, startingPrice, currentPrice, endTime, sellerId, status)
         Item item = new Item(1, "iPhone 15 Pro", "Điện thoại cao cấp",
                 100.0, 100.0, LocalDateTime.now().plusHours(1).toString(), 99, "OPEN");
 
-        //Auction khởi tạo với status=OPEN — hợp lệ để đặt giá
+        // FIX: Auction khởi tạo với status=OPEN — hợp lệ để đặt giá
         auction = new Auction("A001", item, null, AuctionStatus.OPEN,
                 100.0,
                 LocalDateTime.now(),
@@ -118,7 +120,7 @@ public class AuctionTest {
         auction.placeBid(alice, 150.0);
 
         assertThrows(InvalidBidException.class, () ->
-                auction.placeBid(bob, 150.0),
+                        auction.placeBid(bob, 150.0),
                 "Giá bằng giá hiện tại phải ném InvalidBidException"
         );
         // Giá và người dẫn đầu không được thay đổi

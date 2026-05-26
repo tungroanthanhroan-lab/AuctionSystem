@@ -74,6 +74,7 @@ public class UserDAO {
 
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
+                    // Nếu tìm thấy user, đóng gói vào đối tượng User
                     return new User(
                             rs.getInt("id"),
                             rs.getString("username"),
@@ -92,7 +93,6 @@ public class UserDAO {
     /**
      * Hash mật khẩu bằng SHA-256.
      * FIX BUG 10: Không lưu plaintext password.
-     * Lưu ý production nên dùng BCrypt với salt — SHA-256 ở đây là cải thiện tối thiểu.
      */
     private String hashPassword(String password) {
         try {
@@ -104,7 +104,6 @@ public class UserDAO {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            // SHA-256 luôn tồn tại trong Java SE — không thực sự xảy ra
             throw new RuntimeException("SHA-256 không khả dụng", e);
         }
     }

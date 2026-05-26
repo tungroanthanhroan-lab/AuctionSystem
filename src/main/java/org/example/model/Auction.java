@@ -4,6 +4,7 @@ import org.example.controller.BidResponse;
 import org.example.exception.AuctionClosedException;
 import org.example.exception.InvalidBidException;
 import org.example.observer.AuctionNotifier;
+import org.example.observer.BidUpdateEvent;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -11,7 +12,13 @@ import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Model đấu giá — dùng trong AuctionTest.
+ * placeBid() trả BidResponse để test có thể assert kết quả.
+ * Trạng thái OPEN → tự chuyển RUNNING khi có bid đầu tiên.
+ */
 public class Auction {
+
     private String auctionId;
     private Item item;
     private Bidder currentLeader;
@@ -35,8 +42,7 @@ public class Auction {
         this.auctionId = auctionId;
         this.item = item;
         this.currentLeader = currentLeader;
-        // FIX BUG 6: Dùng tham số status thay vì hardcode OPEN
-        this.status = status;
+        this.status = (status != null) ? status : AuctionStatus.OPEN;
         this.currentHighestBid = startingPrice;
         this.startTime = startTime;
         this.endTime = endTime;
@@ -57,9 +63,9 @@ public class Auction {
     public Auction(int id, int itemId, String startTime, String endTime, String status) {
         this.auctionId = String.valueOf(id);
         this.status = parseStatus(status);
+        this.currentHighestBid = 0;
         this.bidHistory = new ArrayList<>();
         this.version = 0;
-        // startTime/endTime từ DB là String — lưu tạm; nếu cần parse thì dùng LocalDateTime.parse()
     }
 
     // Helper: parse chuỗi status từ DB sang enum
@@ -72,14 +78,13 @@ public class Auction {
     }
 
     /**
-     * Logic đặt giá — guard clause bắt lỗi, dùng ReentrantLock để thread-safe.
-     * FIX BUG 6: Cho phép đặt giá khi status là OPEN hoặc RUNNING.
-     * FIX BUG 9: Thay synchronized bằng cùng lock instance.
+     * Logic đặt giá — dùng ReentrantLock để thread-safe.
+     * Trả về BidResponse để phía Controller hoặc Test case có thể assert kết quả.
      */
     public BidResponse placeBid(Bidder bidder, double bidAmount) {
         lock.lock();
         try {
-            // Kiểm tra trạng thái phiên — cho phép cả OPEN và RUNNING
+            // Kiểm tra trạng thái phiên
             if (status == AuctionStatus.FINISHED
                     || status == AuctionStatus.CANCELED
                     || status == AuctionStatus.PAID) {
@@ -93,7 +98,7 @@ public class Auction {
 
             // Kiểm tra thời gian — phòng lỗi luồng chưa kịp đóng phiên
             if (endTime != null && LocalDateTime.now().isAfter(endTime)) {
-                closeAuction(); // đóng bằng cùng lock sẽ gây deadlock nếu gọi nội bộ — dùng closeInternal()
+                closeAuction(); // Dùng chung ReentrantLock không gây deadlock
                 throw new AuctionClosedException("Phiên đấu giá đã hết thời gian!");
             }
 
@@ -108,6 +113,16 @@ public class Auction {
 
             BidTransaction transaction = new BidTransaction(bidder, bidAmount, LocalDateTime.now());
             bidHistory.add(transaction);
+
+            System.out.println("[BID] " + bidder.getUsername() + " đặt giá " + bidAmount);
+
+            // Thông báo sự kiện (Broadcast) tới tất cả các Client đang theo dõi (Từ nhánh advanced)
+            if (notifier != null) {
+                BidUpdateEvent event = new BidUpdateEvent(
+                        auctionId, bidAmount, bidder, LocalDateTime.now().toString()
+                );
+                notifier.broadcast(event);
+            }
 
             return new BidResponse(true, "Đặt giá thành công!", currentHighestBid);
         } finally {
@@ -162,7 +177,6 @@ public class Auction {
     public List<BidTransaction> getBidHistory() { return bidHistory; }
     public void setBidHistory(List<BidTransaction> bidHistory) { this.bidHistory = bidHistory; }
 
-    // FIX: Version cho Optimistic Locking
     public int getVersion() { return version; }
     public void setVersion(int version) { this.version = version; }
 }

@@ -84,10 +84,6 @@ public class AuctionDAO {
     /**
      * FIX BUG 1: Thêm phương thức này — AuctionService.placeBid() gọi nó.
      * Cập nhật giá đấu theo Optimistic Locking: chỉ thành công nếu version khớp.
-     *
-     * SQL: UPDATE auctions SET current_highest_bid=?, current_leader=?, version=version+1
-     *      WHERE id=? AND version=?
-     * Nếu version đã bị người khác tăng trước → rowsAffected = 0 → trả về false.
      */
     public boolean updateBidWithOptimisticLock(String auctionId, String bidderName,
                                                double amount, int expectedVersion) {
@@ -101,7 +97,7 @@ public class AuctionDAO {
             pstmt.setString(3, auctionId);
             pstmt.setInt(4, expectedVersion);
             int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0; // 0 nghĩa là version đã bị thay đổi trước đó (conflict)
+            return rowsAffected > 0; 
         } catch (SQLException e) {
             System.err.println("[DB] Lỗi updateBidWithOptimisticLock: " + e.getMessage());
             e.printStackTrace();
@@ -126,17 +122,13 @@ public class AuctionDAO {
 
     /**
      * Tạo phiên đấu giá mới — INSERT vào DB và set generated ID trở lại Auction object.
-     * Dùng RETURN_GENERATED_KEYS để lấy id tự tăng của SQLite.
-     *
-     * @param auction object đã có item_id, startTime, endTime, startingPrice
-     * @return true nếu INSERT thành công, false nếu lỗi
+     * Giữ lại từ nhánh feature/rebuild-models.
      */
     public boolean insertAuction(Auction auction) {
         String sql = "INSERT INTO auctions(item_id, start_time, end_time, status, current_highest_bid, version) "
                    + "VALUES(?, ?, ?, 'OPEN', ?, 0)";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            // item_id: lấy từ auction.getItem() nếu có, fallback về 0
             int itemId = (auction.getItem() != null) ? auction.getItem().getId() : 0;
             pstmt.setInt(1, itemId);
             pstmt.setString(2, auction.getStartTime() != null
@@ -147,7 +139,6 @@ public class AuctionDAO {
 
             int rows = pstmt.executeUpdate();
             if (rows > 0) {
-                // Lấy id tự tăng SQLite trả về và gán lại vào object RAM
                 try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
                     if (generatedKeys.next()) {
                         String generatedId = String.valueOf(generatedKeys.getLong(1));
@@ -167,7 +158,6 @@ public class AuctionDAO {
 
     /**
      * Lấy danh sách các phiên đấu giá đang MỞ (tên cũ giữ lại để tương thích).
-     * FIX BUG 13: Dùng DatabaseConnection Singleton.
      */
     public List<Auction> getActiveAuctions() {
         return getAllOpenAuctions();
