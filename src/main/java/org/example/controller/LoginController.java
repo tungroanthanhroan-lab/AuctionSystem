@@ -240,7 +240,7 @@ public class LoginController {
     /*
      * Mở màn hình riêng cho Seller sau khi đăng nhập thành công.
      */
-    private void openSellerHomeView() {
+    /*private void openSellerHomeView() {
         try {
             FXMLLoader loader = new FXMLLoader(
                     getClass().getResource("/views/seller-home-view.fxml")
@@ -262,7 +262,7 @@ public class LoginController {
                     "Không mở được màn hình người bán!");
             e.printStackTrace();
         }
-    }
+    }*/
 
     //======================
     //8.Hàm dùng chung
