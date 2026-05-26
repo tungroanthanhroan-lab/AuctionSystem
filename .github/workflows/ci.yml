@@ -13,20 +13,19 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest # Chạy trên máy ảo Ubuntu của GitHub
 
     steps:
       - name: Checkout mã nguồn
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Kéo code về máy ảo
 
-      - name: Cài đặt Node.js
-        uses: actions/setup-node@v4
+      - name: Cài đặt Java JDK
+        uses: actions/setup-java@v4
         with:
-          node-version: 24
+          java-version: '25'
+          distribution: 'temurin' # Bản phân phối Java phổ biến và ổn định nhất
+          cache: maven            # Bật cache để những lần sau Maven tải thư viện nhanh hơn
 
-      - name: Cài đặt các gói thư viện
-        run: npm install
-
-      - name: Chạy thử lệnh Build xem có lỗi không
-        run: npm run build
+      - name: Kiểm tra và Build dự án bằng Maven
+        run: mvn clean package
