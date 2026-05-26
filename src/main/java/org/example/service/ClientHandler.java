@@ -99,6 +99,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("GET_BID_HISTORY")) {
                 handleGetBidHistory(command);
 
+            } else if (command.startsWith("MY_AUCTIONS")) {
+                handleMyAuctions();
+
             } else if (command.startsWith("CHANGE_PASSWORD")) {
                 handleChangePassword(command);
 
@@ -227,7 +230,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("FAIL|Giá khởi điểm không hợp lệ");
         }
     }
-
     /**
      * Format: BID|auctionId|amount
      */
@@ -244,14 +246,22 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
 
         try {
-            String auctionId = parts[1];
-            double amount = Double.parseDouble(parts[2]);
+            String auctionId = parts[1].trim();
+            double amount = Double.parseDouble(parts[2].trim());
             String bidderName = loggedInUser.getUsername();
+
+            /*
+             * Không cho chủ phiên tự đấu giá phiên của mình.
+             */
+            if (auctionService.isAuctionOwner(auctionId, loggedInUser.getId())) {
+                sendResponse("FAIL|Bạn không thể đấu giá phiên do chính mình tạo");
+                return;
+            }
 
             boolean success = auctionService.placeBid(auctionId, bidderName, amount);
 
             if (success) {
-                // Ghi lịch sử bid vào DB (dùng userId thật)
+                // Ghi lịch sử bid vào DB bằng userId thật.
                 bidDAO.placeBid(Integer.parseInt(auctionId), loggedInUser.getId(), amount);
                 sendResponse("SUCCESS|Đặt giá " + amount + " thành công!");
             } else {
@@ -264,21 +274,17 @@ public class ClientHandler implements Runnable, AuctionObserver {
     }
 
     /**
-     * Đóng phiên đấu giá — chỉ ADMIN được phép.
+     * Đóng phiên đấu giá.
+     *
+     * Rule:
+     * - ADMIN được đóng mọi phiên.
+     * - USER chỉ được đóng phiên do chính mình tạo.
      *
      * Format: CLOSE_AUCTION|auctionId
-     * Response:
-     *   SUCCESS|Phiên đấu giá <id> đã được đóng
-     *   FAIL|...
      */
     private void handleCloseAuction(String command) throws IOException {
         if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước");
-            return;
-        }
-
-        if (!"ADMIN".equalsIgnoreCase(loggedInUser.getRole())) {
-            sendResponse("FAIL|Chỉ ADMIN mới được đóng phiên đấu giá");
+            sendResponse("FAIL|Bạn cần đăng nhập trước khi đóng phiên");
             return;
         }
 
@@ -289,6 +295,15 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
 
         String auctionId = parts[1].trim();
+
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedInUser.getRole());
+        boolean isOwner = auctionService.isAuctionOwner(auctionId, loggedInUser.getId());
+
+        if (!isAdmin && !isOwner) {
+            sendResponse("FAIL|Bạn chỉ có thể đóng phiên do chính mình tạo");
+            return;
+        }
+
         boolean success = auctionService.closeAuction(auctionId);
 
         sendResponse(success
@@ -410,87 +425,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
     private void sendResponse(String message) throws IOException {
         out.writeObject(message);
         out.flush();
-    }
-    /**
-     * Admin đóng phiên đấu giá.
-     *
-     * Protocol:
-     * CLOSE_AUCTION|auctionId
-     */
-    private void handleCloseAuction(String command) throws IOException {
-        if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước khi đóng phiên");
-            return;
-        }
-
-        String[] parts = command.split("\\|");
-
-        if (parts.length != 2) {
-            sendResponse("FAIL|Sai format. Dùng: CLOSE_AUCTION|auctionId");
-            return;
-        }
-
-        String auctionId = parts[1].trim();
-
-        /*
-         * Rule:
-         * - ADMIN được đóng mọi phiên.
-         * - USER chỉ được đóng phiên do chính mình tạo.
-         */
-        boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedInUser.getRole());
-        boolean isOwner = auctionService.isAuctionOwner(auctionId, loggedInUser.getId());
-
-        if (!isAdmin && !isOwner) {
-            sendResponse("FAIL|Bạn chỉ có thể đóng phiên do chính mình tạo");
-            return;
-        }
-
-        boolean success = auctionService.closeAuction(auctionId);
-
-        if (success) {
-            sendResponse("SUCCESS|Phiên đấu giá đã được đóng thành công");
-        } else {
-            sendResponse("FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
-        }
-    }
-    /**
-     * Lấy lịch sử bid thật từ DB.
-     *
-     * Protocol:
-     * GET_BID_HISTORY|auctionId
-     *
-     * Response:
-     * BID_HISTORY|userA đã đặt 100.0 $ lúc ...|userB đã đặt 120.0 $ lúc ...
-     */
-    private void handleGetBidHistory(String command) throws IOException {
-        if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước khi xem lịch sử đấu giá");
-            return;
-        }
-
-        String[] parts = command.split("\\|");
-
-        if (parts.length != 2) {
-            sendResponse("FAIL|Sai format. Dùng: GET_BID_HISTORY|auctionId");
-            return;
-        }
-
-        try {
-            int auctionId = Integer.parseInt(parts[1].trim());
-
-            List<String> history = bidDAO.getBidHistory(auctionId);
-
-            StringBuilder sb = new StringBuilder("BID_HISTORY");
-
-            for (String line : history) {
-                sb.append("|").append(line);
-            }
-
-            sendResponse(sb.toString());
-
-        } catch (NumberFormatException e) {
-            sendResponse("FAIL|auctionId không hợp lệ");
-        }
     }
     /**
      * Lấy danh sách phiên đấu giá do user hiện tại tạo.

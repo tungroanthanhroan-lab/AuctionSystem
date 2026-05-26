@@ -150,43 +150,6 @@ public class AuctionService {
         }
     }
     /**
-     * Đóng phiên đấu giá thật trên server.
-     *
-     * Flow:
-     * 1. Update status trong DB thành FINISHED.
-     * 2. Xóa phiên khỏi activeAuctions trên RAM.
-     * 3. VIEW_ITEMS sẽ không còn trả phiên này nữa.
-     */
-    public boolean closeAuction(String auctionId) {
-        try {
-            if (auctionId == null || auctionId.trim().isEmpty()) {
-                return false;
-            }
-
-            boolean dbUpdated = auctionDAO.closeAuction(auctionId);
-
-            if (!dbUpdated) {
-                return false;
-            }
-
-            /*
-             * Xóa khỏi danh sách phiên đang mở trong RAM.
-             * Vì VIEW_ITEMS đang lấy từ activeAuctions,
-             * nên sau khi đóng phiên, quay lại list sẽ không còn thấy phiên đó.
-             */
-            activeAuctions.remove(auctionId);
-
-            System.out.println("[AuctionService] Đã đóng phiên đấu giá: " + auctionId);
-
-            return true;
-
-        } catch (Exception e) {
-            System.out.println("[AuctionService] Lỗi đóng phiên đấu giá: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
-    }
-    /**
      * Kiểm tra user có phải chủ phiên đấu giá không.
      */
     public boolean isAuctionOwner(String auctionId, int userId) {

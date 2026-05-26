@@ -11,6 +11,9 @@ import org.example.model.User;
 import org.example.service.AppSession;
 import java.io.IOException;
 import javafx.scene.control.Button;
+import org.example.service.NetworkService;
+import javafx.scene.control.TextInputDialog;
+import java.util.Optional;
 public class HomeController {
     @FXML
     private Button btnMyAuctions;
@@ -18,7 +21,15 @@ public class HomeController {
     private Label welcomeLabel;
 
     private User currentUser;
+    @FXML
+    private Button btnCheckBalance;
 
+    @FXML
+    private Button btnDeposit;
+
+    @FXML
+    private Button btnChangePassword;
+    private final NetworkService networkService = new NetworkService();
     public void setUser(User user) {
         this.currentUser = user;
         welcomeLabel.setText("Xin chào, " + user.getUsername() + " (" + user.getRole() + ")");
@@ -149,5 +160,232 @@ public class HomeController {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+    /**
+     * Hàm kiểm tra số dư
+     */
+    @FXML
+    private void handleCheckBalance() {
+        try {
+            String response = networkService.sendMessage("CHECK_BALANCE");
+
+            System.out.println("Server trả về số dư: " + response);
+
+            if (response == null || response.trim().isEmpty()) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi",
+                        "Server không trả về dữ liệu số dư!");
+                return;
+            }
+
+            if (response.startsWith("ERROR")) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        response.replace("ERROR|", ""));
+                return;
+            }
+
+            if (response.startsWith("FAIL")) {
+                showAlert(Alert.AlertType.WARNING,
+                        "Không thể kiểm tra số dư",
+                        response.replace("FAIL|", ""));
+                return;
+            }
+
+            if (response.startsWith("BALANCE|")) {
+                String balance = response.replace("BALANCE|", "").trim();
+
+                showAlert(Alert.AlertType.INFORMATION,
+                        "Số dư tài khoản",
+                        "Số dư hiện tại của bạn là: " + balance + " $");
+                return;
+            }
+
+            showAlert(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không thể kiểm tra số dư!");
+            e.printStackTrace();
+        }
+    }
+    /**
+     * Hàm kiểm tra số dư
+     */
+    @FXML
+    private void handleDeposit() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Nạp tiền");
+        dialog.setHeaderText(null);
+        dialog.setContentText("Nhập số tiền muốn nạp:");
+
+        Optional<String> result = dialog.showAndWait();
+
+        if (result.isEmpty()) {
+            return;
+        }
+
+        String amountText = result.get().trim();
+
+        if (amountText.isEmpty()) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Cảnh báo",
+                    "Bạn chưa nhập số tiền cần nạp!");
+            return;
+        }
+
+        try {
+            double amount = Double.parseDouble(amountText);
+
+            if (amount <= 0) {
+                showAlert(Alert.AlertType.WARNING,
+                        "Số tiền không hợp lệ",
+                        "Số tiền nạp phải lớn hơn 0!");
+                return;
+            }
+
+            String response = networkService.sendMessage("DEPOSIT|" + amount);
+
+            System.out.println("Server trả về khi nạp tiền: " + response);
+
+            if (response == null || response.trim().isEmpty()) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi",
+                        "Server không trả về phản hồi!");
+                return;
+            }
+
+            if (response.startsWith("ERROR")) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        response.replace("ERROR|", ""));
+                return;
+            }
+
+            if (response.startsWith("FAIL")) {
+                showAlert(Alert.AlertType.WARNING,
+                        "Nạp tiền thất bại",
+                        response.replace("FAIL|", ""));
+                return;
+            }
+
+            if (response.startsWith("SUCCESS")) {
+                showAlert(Alert.AlertType.INFORMATION,
+                        "Nạp tiền thành công",
+                        response.replace("SUCCESS|", ""));
+
+                /*
+                 * Sau khi nạp thành công, hỏi lại số dư để user thấy thay đổi.
+                 */
+                handleCheckBalance();
+                return;
+            }
+
+            showAlert(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
+
+        } catch (NumberFormatException e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi nhập liệu",
+                    "Vui lòng nhập số tiền hợp lệ, ví dụ: 1000");
+        }
+    }
+    @FXML
+    private void handleChangePassword() {
+        TextInputDialog oldPassDialog = new TextInputDialog();
+        oldPassDialog.setTitle("Đổi mật khẩu");
+        oldPassDialog.setHeaderText(null);
+        oldPassDialog.setContentText("Nhập mật khẩu cũ:");
+
+        Optional<String> oldPassResult = oldPassDialog.showAndWait();
+
+        if (oldPassResult.isEmpty()) {
+            return;
+        }
+
+        String oldPassword = oldPassResult.get().trim();
+
+        if (oldPassword.isEmpty()) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Cảnh báo",
+                    "Bạn chưa nhập mật khẩu cũ!");
+            return;
+        }
+
+        TextInputDialog newPassDialog = new TextInputDialog();
+        newPassDialog.setTitle("Đổi mật khẩu");
+        newPassDialog.setHeaderText(null);
+        newPassDialog.setContentText("Nhập mật khẩu mới:");
+
+        Optional<String> newPassResult = newPassDialog.showAndWait();
+
+        if (newPassResult.isEmpty()) {
+            return;
+        }
+
+        String newPassword = newPassResult.get().trim();
+
+        if (newPassword.isEmpty()) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Cảnh báo",
+                    "Bạn chưa nhập mật khẩu mới!");
+            return;
+        }
+
+        if (newPassword.equals(oldPassword)) {
+            showAlert(Alert.AlertType.WARNING,
+                    "Mật khẩu không thay đổi",
+                    "Mật khẩu mới không được trùng mật khẩu cũ!");
+            return;
+        }
+
+        try {
+            String message = "CHANGE_PASSWORD|" + oldPassword + "|" + newPassword;
+            String response = networkService.sendMessage(message);
+
+            System.out.println("Server trả về khi đổi mật khẩu: " + response);
+
+            if (response == null || response.trim().isEmpty()) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi",
+                        "Server không trả về phản hồi!");
+                return;
+            }
+
+            if (response.startsWith("ERROR")) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        response.replace("ERROR|", ""));
+                return;
+            }
+
+            if (response.startsWith("FAIL")) {
+                showAlert(Alert.AlertType.WARNING,
+                        "Đổi mật khẩu thất bại",
+                        response.replace("FAIL|", ""));
+                return;
+            }
+
+            if (response.startsWith("SUCCESS")) {
+                showAlert(Alert.AlertType.INFORMATION,
+                        "Đổi mật khẩu thành công",
+                        response.replace("SUCCESS|", ""));
+                return;
+            }
+
+            showAlert(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không thể đổi mật khẩu!");
+            e.printStackTrace();
+        }
     }
 }

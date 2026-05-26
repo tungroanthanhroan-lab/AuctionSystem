@@ -30,11 +30,53 @@ public class UserDAO {
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.execute();
             System.out.println("[DB] Đã kiểm tra/tạo bảng users.");
+            /*
+             * Nếu bảng users đã tồn tại từ phiên bản cũ,
+             * CREATE TABLE IF NOT EXISTS sẽ không tự thêm cột balance.
+             * Vì vậy cần migration thủ công.
+             */
+            ensureBalanceColumnExists();
             //Tạo tài khoản admin mặc định nếu chưa tồn tại
             createDefaultAdminIfNotExists();
         } catch (SQLException e) {
             System.err.println("[DB] Lỗi tạo bảng users: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    private void ensureBalanceColumnExists() {
+        String checkSql = "PRAGMA table_info(users)";
+        String alterSql = "ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0.0";
+
+        Connection conn = DatabaseConnection.getConnection();
+
+        boolean hasBalanceColumn = false;
+
+        try (PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+             ResultSet rs = checkStmt.executeQuery()) {
+
+            while (rs.next()) {
+                String columnName = rs.getString("name");
+
+                if ("balance".equalsIgnoreCase(columnName)) {
+                    hasBalanceColumn = true;
+                    break;
+                }
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi kiểm tra cột balance: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+
+        if (!hasBalanceColumn) {
+            try (PreparedStatement alterStmt = conn.prepareStatement(alterSql)) {
+                alterStmt.executeUpdate();
+                System.out.println("[DB] Đã thêm cột balance vào bảng users.");
+            } catch (SQLException e) {
+                System.err.println("[DB] Lỗi thêm cột balance: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
     }
     public void createDefaultAdminIfNotExists() {

@@ -46,6 +46,26 @@
                 prefWidth="220"
                 prefHeight="42"
                 onAction="#handleMyAuctions"/>
+        <Button fx:id="btnCheckBalance"
+                text="Kiểm tra số dư"
+                styleClass="secondary-button"
+                prefWidth="220"
+                prefHeight="42"
+                onAction="#handleCheckBalance"/>
+
+        <Button fx:id="btnDeposit"
+                text="Nạp tiền"
+                styleClass="secondary-button"
+                prefWidth="220"
+                prefHeight="42"
+                onAction="#handleDeposit"/>
+
+        <Button fx:id="btnChangePassword"
+                text="Đổi mật khẩu"
+                styleClass="secondary-button"
+                prefWidth="220"
+                prefHeight="42"
+                onAction="#handleChangePassword"/>
         <Button text="Đăng xuất"
                 styleClass="danger-button"
                 onAction="#handleLogout"/>
