@@ -16,9 +16,14 @@ import java.util.List;
  * Xử lý một client kết nối — chạy trên Thread riêng.
  * Implements AuctionObserver để nhận thông báo real-time từ AuctionNotifier.
  *
- * FIX BUG 8: Đồng nhất protocol — dùng ObjectOutputStream/ObjectInputStream
- *            nhất quán với cách server ghi dữ liệu.
- * FIX BUG 5: Bỏ đoạn broadcast thừa trong case BID — AuctionService đã broadcast bên trong.
+ * Protocol lệnh được hỗ trợ:
+ *   LOGIN|username|password
+ *   REGISTER|username|password|role
+ *   VIEW_ITEMS
+ *   CREATE_AUCTION|title|startingPrice|endTime
+ *   BID|auctionId|amount
+ *   CLOSE_AUCTION|auctionId
+ *   GET_BID_HISTORY|auctionId
  */
 public class ClientHandler implements Runnable, AuctionObserver {
     private final Socket socket;
@@ -94,8 +99,14 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("GET_BID_HISTORY")) {
                 handleGetBidHistory(command);
 
-            } else if (command.startsWith("MY_AUCTIONS")) {
-                handleMyAuctions();
+            } else if (command.startsWith("CHANGE_PASSWORD")) {
+                handleChangePassword(command);
+
+            } else if (command.startsWith("DEPOSIT")) {
+                handleDeposit(command);
+
+            } else if (command.startsWith("CHECK_BALANCE")) {
+                handleCheckBalance(command);
 
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
@@ -105,24 +116,39 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
+    /**
+     * Trả về danh sách phiên đấu giá đang mở.
+     *
+     * Format response:
+     * AUCTIONS|auctionId,title,currentHighestBid,status,currentLeader,endTime|...
+     *
+     * Nếu không có leader → currentLeader = "-"
+     * Nếu không có endTime → endTime = "-"
+     */
     private void handleViewItems() throws IOException {
         List<Auction> auctions = auctionService.getActiveAuctionsList();
         StringBuilder sb = new StringBuilder("AUCTIONS");
         for (Auction a : auctions) {
             String title = "Không rõ sản phẩm";
-
             if (a.getItem() != null && a.getItem().getTitle() != null) {
                 title = a.getItem().getTitle();
             }
-            String endTime = "";
-            if (a.getItem()!=null && a.getItem().getEndTime() != null){
-                endTime = a.getItem().getEndTime();
-            }
-            sb.append("|").append(a.getAuctionId())
-                    .append(",").append(title)
-                    .append(",").append(a.getCurrentHighestBid())
-                    .append(",").append(a.getStatus())
-                    .append(",").append(endTime);
+
+            String leader = (a.getCurrentLeader() != null)
+                    ? a.getCurrentLeader().getUsername()
+                    : "-";
+
+            String endTime = (a.getEndTime() != null)
+                    ? a.getEndTime().toString()
+                    : "-";
+
+            sb.append("|")
+              .append(a.getAuctionId()).append(",")
+              .append(title).append(",")
+              .append(a.getCurrentHighestBid()).append(",")
+              .append(a.getStatus()).append(",")
+              .append(leader).append(",")
+              .append(endTime);
         }
         sendResponse(sb.toString());
     }
@@ -151,34 +177,26 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("FAIL|Sai format. Dùng: REGISTER|username|password|role");
         }
     }
+
     /**
-     * Seller/Admin tạo phiên đấu giá mới.
+     * Seller/Admin tạo phiên đấu giá mới bằng tên sản phẩm.
      *
-     * Format:
-     * CREATE_AUCTION|title|startingPrice|endTime
-     *
-     * Ví dụ:
-     * CREATE_AUCTION|Laptop Gaming|1000|2026-12-31T23:59
+     * Format: CREATE_AUCTION|title|startingPrice|endTime
+     * Ví dụ:  CREATE_AUCTION|Laptop Gaming|1000|2026-12-31T23:59
      */
     private void handleCreateAuction(String command) throws IOException {
-        // 1. Kiểm tra đăng nhập
         if (loggedInUser == null) {
             sendResponse("FAIL|Bạn cần đăng nhập trước khi tạo phiên đấu giá");
             return;
         }
 
-        // 2. Kiểm tra quyền tạo phiên
         String role = loggedInUser.getRole();
-
-        if (!"ADMIN".equalsIgnoreCase(role)
-                && !"USER".equalsIgnoreCase(role)) {
+        if (!"ADMIN".equalsIgnoreCase(role) && !"USER".equalsIgnoreCase(role)) {
             sendResponse("FAIL|Chỉ Seller hoặc Admin mới được tạo phiên đấu giá");
             return;
         }
 
-        // 3. Tách tham số
         String[] parts = command.split("\\|", -1);
-
         if (parts.length != 4) {
             sendResponse("FAIL|Sai format. Dùng: CREATE_AUCTION|title|startingPrice|endTime");
             return;
@@ -193,32 +211,27 @@ public class ClientHandler implements Runnable, AuctionObserver {
                 sendResponse("FAIL|Tên sản phẩm không được để trống");
                 return;
             }
-
             if (startingPrice < 0) {
                 sendResponse("FAIL|Giá khởi điểm không được âm");
                 return;
             }
 
             boolean success = auctionService.createAuctionWithNewItem(
-                    title,
-                    "",
-                    startingPrice,
-                    endTime,
-                    loggedInUser.getId()
-            );
+                    title, "", startingPrice, endTime, loggedInUser.getId());
 
-            if (success) {
-                sendResponse("SUCCESS|Phiên đấu giá đã được tạo thành công");
-            } else {
-                sendResponse("FAIL|Tạo phiên đấu giá thất bại. Kiểm tra dữ liệu nhập.");
-            }
+            sendResponse(success
+                    ? "SUCCESS|Phiên đấu giá đã được tạo thành công"
+                    : "FAIL|Tạo phiên đấu giá thất bại. Kiểm tra dữ liệu nhập.");
 
         } catch (NumberFormatException e) {
             sendResponse("FAIL|Giá khởi điểm không hợp lệ");
         }
     }
+
+    /**
+     * Format: BID|auctionId|amount
+     */
     private void handleBid(String command) throws IOException {
-        // Format: BID|auctionId|amount
         String[] parts = command.split("\\|");
         if (parts.length != 3) {
             sendResponse("FAIL|Sai format. Dùng: BID|auctionId|amount");
@@ -235,17 +248,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
             double amount = Double.parseDouble(parts[2]);
             String bidderName = loggedInUser.getUsername();
 
-            /*
-             * Không cho người tạo phiên tự đấu giá phiên của mình.
-             * Rule này phải nằm ở backend để tránh gian lận.
-             */
-            if (auctionService.isAuctionOwner(auctionId, loggedInUser.getId())) {
-                sendResponse("FAIL|Bạn không thể đấu giá phiên do chính mình tạo");
-                return;
-            }
-
-            // FIX BUG 5: Chỉ gọi placeBid() — broadcast đã được thực hiện BÊN TRONG AuctionService.
-            //            Không tạo thêm event hay gọi broadcast() ở đây nữa.
             boolean success = auctionService.placeBid(auctionId, bidderName, amount);
 
             if (success) {
@@ -262,51 +264,135 @@ public class ClientHandler implements Runnable, AuctionObserver {
     }
 
     /**
-     * Xử lý lệnh tạo phiên đấu giá mới — chỉ ADMIN mới được tạo.
+     * Đóng phiên đấu giá — chỉ ADMIN được phép.
      *
-     * Format: CREATE_AUCTION|itemId|startingPrice|endTime
-     *   - itemId        : id của item (INTEGER)
-     *   - startingPrice : giá khởi điểm (DOUBLE)
-     *   - endTime       : thời gian kết thúc dạng ISO, ví dụ 2025-12-31T23:59
-     *
-     * Ví dụ: CREATE_AUCTION|5|1000000|2025-12-31T23:59
+     * Format: CLOSE_AUCTION|auctionId
+     * Response:
+     *   SUCCESS|Phiên đấu giá <id> đã được đóng
+     *   FAIL|...
      */
-    private void handleCreateAuction(String command) throws IOException {
-        // 1. Kiểm tra đăng nhập
+    private void handleCloseAuction(String command) throws IOException {
         if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước khi tạo phiên đấu giá");
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
             return;
         }
 
-        // 2. Kiểm tra quyền ADMIN
         if (!"ADMIN".equalsIgnoreCase(loggedInUser.getRole())) {
-            sendResponse("FAIL|Chỉ ADMIN mới được tạo phiên đấu giá");
+            sendResponse("FAIL|Chỉ ADMIN mới được đóng phiên đấu giá");
             return;
         }
 
-        // 3. Tách tham số
         String[] parts = command.split("\\|");
-        if (parts.length != 4) {
-            sendResponse("FAIL|Sai format. Dùng: CREATE_AUCTION|itemId|startingPrice|endTime");
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: CLOSE_AUCTION|auctionId");
             return;
         }
+
+        String auctionId = parts[1].trim();
+        boolean success = auctionService.closeAuction(auctionId);
+
+        sendResponse(success
+                ? "SUCCESS|Phiên đấu giá " + auctionId + " đã được đóng"
+                : "FAIL|Không thể đóng phiên đấu giá " + auctionId + " (không tồn tại hoặc đã đóng)");
+    }
+
+    /**
+     * Lấy lịch sử bid của một phiên đấu giá.
+     *
+     * Format: GET_BID_HISTORY|auctionId
+     * Response:
+     *   BID_HISTORY|auctionId|userId,amount,bidTime|userId,amount,bidTime|...
+     *   BID_HISTORY|auctionId|   (nếu chưa có bid nào)
+     *   FAIL|...
+     */
+    private void handleGetBidHistory(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+
+        String[] parts = command.split("\\|");
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: GET_BID_HISTORY|auctionId");
+            return;
+        }
+
+        String auctionId = parts[1].trim();
 
         try {
-            int itemId = Integer.parseInt(parts[1]);
-            double startingPrice = Double.parseDouble(parts[2]);
-            String endTime = parts[3]; // ví dụ: 2025-12-31T23:59
+            List<String[]> history = bidDAO.getBidHistory(Integer.parseInt(auctionId));
 
-            // 4. Gọi Service — INSERT DB + put vào activeAuctions
-            boolean success = auctionService.createAuction(itemId, startingPrice, endTime);
-
-            if (success) {
-                sendResponse("SUCCESS|Phiên đấu giá đã được tạo thành công");
-            } else {
-                sendResponse("FAIL|Tạo phiên đấu giá thất bại. Kiểm tra itemId và endTime.");
+            StringBuilder sb = new StringBuilder("BID_HISTORY|").append(auctionId);
+            for (String[] row : history) {
+                // row: [userId, username, bidAmount, bidTime]
+                sb.append("|")
+                  .append(row[0]).append(",")   // userId
+                  .append(row[1]).append(",")   // username
+                  .append(row[2]).append(",")   // bidAmount
+                  .append(row[3]);              // bidTime
             }
+            sendResponse(sb.toString());
 
         } catch (NumberFormatException e) {
-            sendResponse("FAIL|itemId hoặc startingPrice không hợp lệ");
+            sendResponse("FAIL|auctionId không hợp lệ");
+        }
+    }
+
+    private void handleChangePassword(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        String[] parts = command.split("\\|");
+        if (parts.length != 3) {
+            sendResponse("FAIL|Sai format. Dùng: CHANGE_PASSWORD|oldPass|newPass");
+            return;
+        }
+        boolean success = userService.changePassword(loggedInUser.getUsername(), parts[1], parts[2]);
+        if (success) {
+            sendResponse("SUCCESS|Đổi mật khẩu thành công");
+        } else {
+            sendResponse("FAIL|Sai mật khẩu cũ");
+        }
+    }
+
+    private void handleDeposit(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        String[] parts = command.split("\\|");
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: DEPOSIT|amount");
+            return;
+        }
+        try {
+            double amount = Double.parseDouble(parts[1]);
+            if (amount <= 0) {
+                sendResponse("FAIL|Số tiền nạp phải lớn hơn 0");
+                return;
+            }
+            boolean success = userService.updateBalance(loggedInUser.getUsername(), amount);
+            if (success) {
+                sendResponse("SUCCESS|Nạp tiền thành công");
+            } else {
+                sendResponse("FAIL|Có lỗi xảy ra khi nạp tiền");
+            }
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|Số tiền không hợp lệ");
+        }
+    }
+
+    private void handleCheckBalance(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        double balance = userService.getBalance(loggedInUser.getUsername());
+        if (balance >= 0) {
+            sendResponse("BALANCE|" + balance);
+        } else {
+            sendResponse("FAIL|Lỗi khi lấy số dư");
         }
     }
 
@@ -315,16 +401,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
     public void onBidUpdate(BidUpdateEvent event) {
         /*
          * Tạm thời không gửi BidUpdateEvent object về JavaFX client.
-         *
-         * UI hiện đang chờ response dạng String:
-         * SUCCESS|...
-         * FAIL|...
-         *
+         * UI hiện đang chờ response dạng String (SUCCESS|... / FAIL|...).
          * Nếu gửi object event xen vào, client dễ đọc sai hoặc báo lỗi kết nối.
-         * Vì vậy chỉ log ra console server để biết có update xảy ra.
          */
         System.out.println("[Notifier] Có bid update, tạm thời không gửi realtime object về client.");
     }
+
     private void sendResponse(String message) throws IOException {
         out.writeObject(message);
         out.flush();

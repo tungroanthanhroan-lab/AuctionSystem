@@ -59,8 +59,20 @@ public class Auction {
         this.status = parseStatus(status);
         this.bidHistory = new ArrayList<>();
         this.version = 0;
-        // startTime/endTime từ DB là String — lưu tạm; nếu cần parse thì dùng LocalDateTime.parse()
+        // Parse endTime từ DB vào LocalDateTime để VIEW_ITEMS có thể trả về
+        if (endTime != null && !endTime.isEmpty()) {
+            try {
+                // SQLite lưu dạng "yyyy-MM-ddTHH:mm" hoặc "yyyy-MM-dd HH:mm:ss" — thử cả hai
+                this.endTime = java.time.LocalDateTime.parse(
+                        endTime.replace(" ", "T")
+                               .substring(0, Math.min(endTime.length(), 16)));
+            } catch (Exception e) {
+                // Nếu parse thất bại giữ null — handleViewItems trả "-"
+                this.endTime = null;
+            }
+        }
     }
+
 
     // Helper: parse chuỗi status từ DB sang enum
     private AuctionStatus parseStatus(String statusStr) {
