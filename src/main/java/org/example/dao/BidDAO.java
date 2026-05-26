@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+
 public class BidDAO {
 
     /**
@@ -72,42 +73,39 @@ public class BidDAO {
         }
         return 0;
     }
+
     /**
-     * Lấy lịch sử đặt giá của một phiên đấu giá.
+     * Lấy toàn bộ lịch sử đặt giá của một phiên đấu giá, sắp xếp mới nhất trước.
+     * JOIN với bảng users để lấy username.
      *
-     * Format mỗi dòng:
-     * username đã đặt amount $ lúc bid_time
+     * @param auctionId id phiên cần truy vấn
+     * @return List các mảng String gồm [userId, username, bidAmount, bidTime]
      */
-    public List<String> getBidHistory(int auctionId) {
-        List<String> history = new ArrayList<>();
-
-        String sql = "SELECT u.username, b.bid_amount, b.bid_time " +
-                "FROM bids b " +
-                "JOIN users u ON b.user_id = u.id " +
-                "WHERE b.auction_id = ? " +
-                "ORDER BY b.bid_time DESC";
-
+    public List<String[]> getBidHistory(int auctionId) {
+        List<String[]> result = new ArrayList<>();
+        String sql = "SELECT b.user_id, u.username, b.bid_amount, b.bid_time "
+                   + "FROM bids b "
+                   + "LEFT JOIN users u ON b.user_id = u.id "
+                   + "WHERE b.auction_id = ? "
+                   + "ORDER BY b.bid_time DESC";
         Connection conn = DatabaseConnection.getConnection();
-
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, auctionId);
-
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
-                    String username = rs.getString("username");
-                    double amount = rs.getDouble("bid_amount");
-                    String bidTime = rs.getString("bid_time");
-
-                    String line = username + " đã đặt " + amount + " $ lúc " + bidTime;
-                    history.add(line);
+                    String[] row = {
+                        String.valueOf(rs.getInt("user_id")),
+                        rs.getString("username") != null ? rs.getString("username") : "unknown",
+                        String.valueOf(rs.getDouble("bid_amount")),
+                        rs.getString("bid_time") != null ? rs.getString("bid_time") : ""
+                    };
+                    result.add(row);
                 }
             }
-
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi lấy lịch sử bid: " + e.getMessage());
+            System.err.println("[DB] Lỗi getBidHistory: " + e.getMessage());
             e.printStackTrace();
         }
-
-        return history;
+        return result;
     }
 }
