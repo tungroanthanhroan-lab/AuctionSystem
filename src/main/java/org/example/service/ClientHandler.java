@@ -108,6 +108,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("CHECK_BALANCE")) {
                 handleCheckBalance(command);
 
+            } else if (command.startsWith("MY_AUCTIONS")) {
+                handleMyAuctions();
+
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
@@ -263,81 +266,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
-    /**
-     * Đóng phiên đấu giá — chỉ ADMIN được phép.
-     *
-     * Format: CLOSE_AUCTION|auctionId
-     * Response:
-     *   SUCCESS|Phiên đấu giá <id> đã được đóng
-     *   FAIL|...
-     */
-    private void handleCloseAuction(String command) throws IOException {
-        if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước");
-            return;
-        }
-
-        if (!"ADMIN".equalsIgnoreCase(loggedInUser.getRole())) {
-            sendResponse("FAIL|Chỉ ADMIN mới được đóng phiên đấu giá");
-            return;
-        }
-
-        String[] parts = command.split("\\|");
-        if (parts.length != 2) {
-            sendResponse("FAIL|Sai format. Dùng: CLOSE_AUCTION|auctionId");
-            return;
-        }
-
-        String auctionId = parts[1].trim();
-        boolean success = auctionService.closeAuction(auctionId);
-
-        sendResponse(success
-                ? "SUCCESS|Phiên đấu giá " + auctionId + " đã được đóng"
-                : "FAIL|Không thể đóng phiên đấu giá " + auctionId + " (không tồn tại hoặc đã đóng)");
-    }
-
-    /**
-     * Lấy lịch sử bid của một phiên đấu giá.
-     *
-     * Format: GET_BID_HISTORY|auctionId
-     * Response:
-     *   BID_HISTORY|auctionId|userId,amount,bidTime|userId,amount,bidTime|...
-     *   BID_HISTORY|auctionId|   (nếu chưa có bid nào)
-     *   FAIL|...
-     */
-    private void handleGetBidHistory(String command) throws IOException {
-        if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước");
-            return;
-        }
-
-        String[] parts = command.split("\\|");
-        if (parts.length != 2) {
-            sendResponse("FAIL|Sai format. Dùng: GET_BID_HISTORY|auctionId");
-            return;
-        }
-
-        String auctionId = parts[1].trim();
-
-        try {
-            List<String[]> history = bidDAO.getBidHistory(Integer.parseInt(auctionId));
-
-            StringBuilder sb = new StringBuilder("BID_HISTORY|").append(auctionId);
-            for (String[] row : history) {
-                // row: [userId, username, bidAmount, bidTime]
-                sb.append("|")
-                  .append(row[0]).append(",")   // userId
-                  .append(row[1]).append(",")   // username
-                  .append(row[2]).append(",")   // bidAmount
-                  .append(row[3]);              // bidTime
-            }
-            sendResponse(sb.toString());
-
-        } catch (NumberFormatException e) {
-            sendResponse("FAIL|auctionId không hợp lệ");
-        }
-    }
-
     private void handleChangePassword(String command) throws IOException {
         if (loggedInUser == null) {
             sendResponse("FAIL|Bạn cần đăng nhập trước");
@@ -478,13 +406,20 @@ public class ClientHandler implements Runnable, AuctionObserver {
         try {
             int auctionId = Integer.parseInt(parts[1].trim());
 
-            List<String> history = bidDAO.getBidHistory(auctionId);
+            List<String[]> history = bidDAO.getBidHistory(auctionId);
 
             StringBuilder sb = new StringBuilder("BID_HISTORY");
 
-            for (String line : history) {
-                sb.append("|").append(line);
+            for (String[] row : history) {  // Thay từ String line
+                // row: [userId, username, bidAmount, bidTime]
+                sb.append("|")
+                        .append(row[1])   // username
+                        .append(" đã đặt ")
+                        .append(row[2])   // bidAmount
+                        .append("$ lúc ")
+                        .append(row[3]);  // bidTime
             }
+
 
             sendResponse(sb.toString());
 
