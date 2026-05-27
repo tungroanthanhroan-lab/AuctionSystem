@@ -108,8 +108,13 @@ public class MyAuctionsController {
             String currentPrice = fields[2].trim();
             String status = fields[3].trim();
 
+            String currentLeader = "";
             String endTime = "";
-            if (fields.length >= 5) {
+
+            if (fields.length >= 6) {
+                currentLeader = fields[4].trim();
+                endTime = fields[5].trim();
+            } else if (fields.length == 5) {
                 endTime = fields[4].trim();
             }
 
@@ -121,7 +126,11 @@ public class MyAuctionsController {
                     + " - Giá hiện tại: " + currentPrice + "$"
                     + " - Trạng thái: " + status;
 
-            if (!endTime.isEmpty()) {
+            if (!currentLeader.isEmpty() && !currentLeader.equals("-")) {
+                rawInfo += " - Người dẫn đầu: " + currentLeader;
+            }
+
+            if (!endTime.isEmpty() && !endTime.equals("-")) {
                 rawInfo += " - Kết thúc: " + endTime;
             }
 
@@ -129,7 +138,11 @@ public class MyAuctionsController {
                     + "  •  Giá: " + currentPrice + "$"
                     + "  •  " + formatStatus(status);
 
-            if (!endTime.isEmpty()) {
+            if (!currentLeader.isEmpty() && !currentLeader.equals("-")) {
+                displayText += "  •  Dẫn đầu: " + currentLeader;
+            }
+
+            if (!endTime.isEmpty() && !endTime.equals("-")) {
                 displayText += "  •  Kết thúc: " + formatDateTime(endTime);
             }
 

@@ -3,28 +3,17 @@ package org.example.service;
 import org.example.dao.BidDAO;
 import org.example.model.Auction;
 import org.example.model.User;
-import org.example.model.Bidder;
 import org.example.observer.AuctionNotifier;
 import org.example.observer.AuctionObserver;
 import org.example.observer.BidUpdateEvent;
 
-import java.io.*;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.List;
 
-/**
- * Xử lý một client kết nối — chạy trên Thread riêng.
- * Implements AuctionObserver để nhận thông báo real-time từ AuctionNotifier.
- *
- * Protocol lệnh được hỗ trợ:
- *   LOGIN|username|password
- *   REGISTER|username|password|role
- *   VIEW_ITEMS
- *   CREATE_AUCTION|title|startingPrice|endTime
- *   BID|auctionId|amount
- *   CLOSE_AUCTION|auctionId
- *   GET_BID_HISTORY|auctionId
- */
 public class ClientHandler implements Runnable, AuctionObserver {
     private final Socket socket;
     private ObjectOutputStream out;
@@ -35,11 +24,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
     private final AuctionNotifier auctionNotifier;
     private final BidDAO bidDAO;
 
-    // Lưu user đang đăng nhập — dùng để ghi bid đúng userId vào DB
     private User loggedInUser;
 
-    public ClientHandler(Socket socket, UserService userService,
-                         AuctionService auctionService, AuctionNotifier auctionNotifier,
+    public ClientHandler(Socket socket,
+                         UserService userService,
+                         AuctionService auctionService,
+                         AuctionNotifier auctionNotifier,
                          BidDAO bidDAO) {
         this.socket = socket;
         this.userService = userService;
@@ -51,12 +41,10 @@ public class ClientHandler implements Runnable, AuctionObserver {
     @Override
     public void run() {
         try {
-            // LUÔN tạo Output trước Input để tránh Deadlock TCP
             out = new ObjectOutputStream(socket.getOutputStream());
             out.flush();
             in = new ObjectInputStream(socket.getInputStream());
 
-            // Đăng ký nhận thông báo real-time
             auctionNotifier.addObserver(this);
 
             Object incomingData;
@@ -99,6 +87,9 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("GET_BID_HISTORY")) {
                 handleGetBidHistory(command);
 
+            } else if (command.startsWith("MY_AUCTIONS")) {
+                handleMyAuctions();
+
             } else if (command.startsWith("CHANGE_PASSWORD")) {
                 handleChangePassword(command);
 
@@ -108,9 +99,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
             } else if (command.startsWith("CHECK_BALANCE")) {
                 handleCheckBalance(command);
 
-            } else if (command.startsWith("MY_AUCTIONS")) {
-                handleMyAuctions();
-
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
@@ -119,18 +107,10 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
-    /**
-     * Trả về danh sách phiên đấu giá đang mở.
-     *
-     * Format response:
-     * AUCTIONS|auctionId,title,currentHighestBid,status,currentLeader,endTime|...
-     *
-     * Nếu không có leader → currentLeader = "-"
-     * Nếu không có endTime → endTime = "-"
-     */
     private void handleViewItems() throws IOException {
         List<Auction> auctions = auctionService.getActiveAuctionsList();
         StringBuilder sb = new StringBuilder("AUCTIONS");
+
         for (Auction a : auctions) {
             String title = "Không rõ sản phẩm";
             if (a.getItem() != null && a.getItem().getTitle() != null) {
@@ -146,47 +126,44 @@ public class ClientHandler implements Runnable, AuctionObserver {
                     : "-";
 
             sb.append("|")
-              .append(a.getAuctionId()).append(",")
-              .append(title).append(",")
-              .append(a.getCurrentHighestBid()).append(",")
-              .append(a.getStatus()).append(",")
-              .append(leader).append(",")
-              .append(endTime);
+                    .append(a.getAuctionId()).append(",")
+                    .append(title).append(",")
+                    .append(a.getCurrentHighestBid()).append(",")
+                    .append(a.getStatus()).append(",")
+                    .append(leader).append(",")
+                    .append(endTime);
         }
+
         sendResponse(sb.toString());
     }
 
     private void handleLogin(String command) throws IOException {
         String[] parts = command.split("\\|");
-        if (parts.length == 3) {
-            User user = userService.login(parts[1], parts[2]);
-            if (user != null) {
-                loggedInUser = user;
-                sendResponse("SUCCESS|Chào mừng " + user.getUsername() + "! Role: " + user.getRole());
-            } else {
-                sendResponse("FAIL|Sai tài khoản hoặc mật khẩu");
-            }
-        } else {
+        if (parts.length != 3) {
             sendResponse("FAIL|Sai format. Dùng: LOGIN|username|password");
+            return;
+        }
+
+        User user = userService.login(parts[1], parts[2]);
+        if (user != null) {
+            loggedInUser = user;
+            sendResponse("SUCCESS|Chào mừng " + user.getUsername() + "! Role: " + user.getRole());
+        } else {
+            sendResponse("FAIL|Sai tài khoản hoặc mật khẩu");
         }
     }
 
     private void handleRegister(String command) throws IOException {
         String[] parts = command.split("\\|");
-        if (parts.length == 4) {
-            boolean ok = userService.register(parts[1], parts[2], parts[3]);
-            sendResponse(ok ? "SUCCESS|Đăng ký thành công" : "FAIL|Username đã tồn tại");
-        } else {
+        if (parts.length != 4) {
             sendResponse("FAIL|Sai format. Dùng: REGISTER|username|password|role");
+            return;
         }
+
+        boolean ok = userService.register(parts[1], parts[2], parts[3]);
+        sendResponse(ok ? "SUCCESS|Đăng ký thành công" : "FAIL|Username đã tồn tại");
     }
 
-    /**
-     * Seller/Admin tạo phiên đấu giá mới bằng tên sản phẩm.
-     *
-     * Format: CREATE_AUCTION|title|startingPrice|endTime
-     * Ví dụ:  CREATE_AUCTION|Laptop Gaming|1000|2026-12-31T23:59
-     */
     private void handleCreateAuction(String command) throws IOException {
         if (loggedInUser == null) {
             sendResponse("FAIL|Bạn cần đăng nhập trước khi tạo phiên đấu giá");
@@ -195,7 +172,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
         String role = loggedInUser.getRole();
         if (!"ADMIN".equalsIgnoreCase(role) && !"USER".equalsIgnoreCase(role)) {
-            sendResponse("FAIL|Chỉ Seller hoặc Admin mới được tạo phiên đấu giá");
+            sendResponse("FAIL|Chỉ User hoặc Admin mới được tạo phiên đấu giá");
             return;
         }
 
@@ -214,6 +191,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
                 sendResponse("FAIL|Tên sản phẩm không được để trống");
                 return;
             }
+
             if (startingPrice < 0) {
                 sendResponse("FAIL|Giá khởi điểm không được âm");
                 return;
@@ -231,9 +209,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
-    /**
-     * Format: BID|auctionId|amount
-     */
     private void handleBid(String command) throws IOException {
         String[] parts = command.split("\\|");
         if (parts.length != 3) {
@@ -247,14 +222,18 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
 
         try {
-            String auctionId = parts[1];
-            double amount = Double.parseDouble(parts[2]);
+            String auctionId = parts[1].trim();
+            double amount = Double.parseDouble(parts[2].trim());
             String bidderName = loggedInUser.getUsername();
+
+            if (auctionService.isAuctionOwner(auctionId, loggedInUser.getId())) {
+                sendResponse("FAIL|Bạn không thể đấu giá phiên do chính mình tạo");
+                return;
+            }
 
             boolean success = auctionService.placeBid(auctionId, bidderName, amount);
 
             if (success) {
-                // Ghi lịch sử bid vào DB (dùng userId thật)
                 bidDAO.placeBid(Integer.parseInt(auctionId), loggedInUser.getId(), amount);
                 sendResponse("SUCCESS|Đặt giá " + amount + " thành công!");
             } else {
@@ -266,85 +245,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
     }
 
-    private void handleChangePassword(String command) throws IOException {
-        if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước");
-            return;
-        }
-        String[] parts = command.split("\\|");
-        if (parts.length != 3) {
-            sendResponse("FAIL|Sai format. Dùng: CHANGE_PASSWORD|oldPass|newPass");
-            return;
-        }
-        boolean success = userService.changePassword(loggedInUser.getUsername(), parts[1], parts[2]);
-        if (success) {
-            sendResponse("SUCCESS|Đổi mật khẩu thành công");
-        } else {
-            sendResponse("FAIL|Sai mật khẩu cũ");
-        }
-    }
-
-    private void handleDeposit(String command) throws IOException {
-        if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước");
-            return;
-        }
-        String[] parts = command.split("\\|");
-        if (parts.length != 2) {
-            sendResponse("FAIL|Sai format. Dùng: DEPOSIT|amount");
-            return;
-        }
-        try {
-            double amount = Double.parseDouble(parts[1]);
-            if (amount <= 0) {
-                sendResponse("FAIL|Số tiền nạp phải lớn hơn 0");
-                return;
-            }
-            boolean success = userService.updateBalance(loggedInUser.getUsername(), amount);
-            if (success) {
-                sendResponse("SUCCESS|Nạp tiền thành công");
-            } else {
-                sendResponse("FAIL|Có lỗi xảy ra khi nạp tiền");
-            }
-        } catch (NumberFormatException e) {
-            sendResponse("FAIL|Số tiền không hợp lệ");
-        }
-    }
-
-    private void handleCheckBalance(String command) throws IOException {
-        if (loggedInUser == null) {
-            sendResponse("FAIL|Bạn cần đăng nhập trước");
-            return;
-        }
-        double balance = userService.getBalance(loggedInUser.getUsername());
-        if (balance >= 0) {
-            sendResponse("BALANCE|" + balance);
-        } else {
-            sendResponse("FAIL|Lỗi khi lấy số dư");
-        }
-    }
-
-    /** Nhận event real-time từ AuctionNotifier, đẩy ngay về client */
-    @Override
-    public void onBidUpdate(BidUpdateEvent event) {
-        /*
-         * Tạm thời không gửi BidUpdateEvent object về JavaFX client.
-         * UI hiện đang chờ response dạng String (SUCCESS|... / FAIL|...).
-         * Nếu gửi object event xen vào, client dễ đọc sai hoặc báo lỗi kết nối.
-         */
-        System.out.println("[Notifier] Có bid update, tạm thời không gửi realtime object về client.");
-    }
-
-    private void sendResponse(String message) throws IOException {
-        out.writeObject(message);
-        out.flush();
-    }
-    /**
-     * Admin đóng phiên đấu giá.
-     *
-     * Protocol:
-     * CLOSE_AUCTION|auctionId
-     */
     private void handleCloseAuction(String command) throws IOException {
         if (loggedInUser == null) {
             sendResponse("FAIL|Bạn cần đăng nhập trước khi đóng phiên");
@@ -352,7 +252,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
 
         String[] parts = command.split("\\|");
-
         if (parts.length != 2) {
             sendResponse("FAIL|Sai format. Dùng: CLOSE_AUCTION|auctionId");
             return;
@@ -360,11 +259,6 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
         String auctionId = parts[1].trim();
 
-        /*
-         * Rule:
-         * - ADMIN được đóng mọi phiên.
-         * - USER chỉ được đóng phiên do chính mình tạo.
-         */
         boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedInUser.getRole());
         boolean isOwner = auctionService.isAuctionOwner(auctionId, loggedInUser.getId());
 
@@ -375,21 +269,11 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
         boolean success = auctionService.closeAuction(auctionId);
 
-        if (success) {
-            sendResponse("SUCCESS|Phiên đấu giá đã được đóng thành công");
-        } else {
-            sendResponse("FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
-        }
+        sendResponse(success
+                ? "SUCCESS|Phiên đấu giá đã được đóng thành công"
+                : "FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
     }
-    /**
-     * Lấy lịch sử bid thật từ DB.
-     *
-     * Protocol:
-     * GET_BID_HISTORY|auctionId
-     *
-     * Response:
-     * BID_HISTORY|userA đã đặt 100.0 $ lúc ...|userB đã đặt 120.0 $ lúc ...
-     */
+
     private void handleGetBidHistory(String command) throws IOException {
         if (loggedInUser == null) {
             sendResponse("FAIL|Bạn cần đăng nhập trước khi xem lịch sử đấu giá");
@@ -397,29 +281,25 @@ public class ClientHandler implements Runnable, AuctionObserver {
         }
 
         String[] parts = command.split("\\|");
-
         if (parts.length != 2) {
             sendResponse("FAIL|Sai format. Dùng: GET_BID_HISTORY|auctionId");
             return;
         }
 
+        String auctionId = parts[1].trim();
+
         try {
-            int auctionId = Integer.parseInt(parts[1].trim());
+            List<String[]> history = bidDAO.getBidHistory(Integer.parseInt(auctionId));
 
-            List<String[]> history = bidDAO.getBidHistory(auctionId);
+            StringBuilder sb = new StringBuilder("BID_HISTORY|").append(auctionId);
 
-            StringBuilder sb = new StringBuilder("BID_HISTORY");
-
-            for (String[] row : history) {  // Thay từ String line
-                // row: [userId, username, bidAmount, bidTime]
+            for (String[] row : history) {
                 sb.append("|")
-                        .append(row[1])   // username
-                        .append(" đã đặt ")
-                        .append(row[2])   // bidAmount
-                        .append("$ lúc ")
-                        .append(row[3]);  // bidTime
+                        .append(row[0]).append(",")
+                        .append(row[1]).append(",")
+                        .append(row[2]).append(",")
+                        .append(row[3]);
             }
-
 
             sendResponse(sb.toString());
 
@@ -427,15 +307,7 @@ public class ClientHandler implements Runnable, AuctionObserver {
             sendResponse("FAIL|auctionId không hợp lệ");
         }
     }
-    /**
-     * Lấy danh sách phiên đấu giá do user hiện tại tạo.
-     *
-     * Protocol:
-     * MY_AUCTIONS
-     *
-     * Response:
-     * MY_AUCTIONS|auctionId,title,currentHighestBid,status,endTime
-     */
+
     private void handleMyAuctions() throws IOException {
         if (loggedInUser == null) {
             sendResponse("FAIL|Bạn cần đăng nhập trước khi xem phiên của tôi");
@@ -448,30 +320,117 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
         for (Auction a : auctions) {
             String title = "Không rõ sản phẩm";
-            String endTime = "";
-
-            if (a.getItem() != null) {
-                if (a.getItem().getTitle() != null) {
-                    title = a.getItem().getTitle();
-                }
-
-                if (a.getItem().getEndTime() != null) {
-                    endTime = a.getItem().getEndTime();
-                }
+            if (a.getItem() != null && a.getItem().getTitle() != null) {
+                title = a.getItem().getTitle();
             }
 
-            sb.append("|").append(a.getAuctionId())
-                    .append(",").append(title)
-                    .append(",").append(a.getCurrentHighestBid())
-                    .append(",").append(a.getStatus())
-                    .append(",").append(endTime);
+            String leader = (a.getCurrentLeader() != null)
+                    ? a.getCurrentLeader().getUsername()
+                    : "-";
+
+            String endTime = (a.getEndTime() != null)
+                    ? a.getEndTime().toString()
+                    : "-";
+
+            sb.append("|")
+                    .append(a.getAuctionId()).append(",")
+                    .append(title).append(",")
+                    .append(a.getCurrentHighestBid()).append(",")
+                    .append(a.getStatus()).append(",")
+                    .append(leader).append(",")
+                    .append(endTime);
         }
 
         sendResponse(sb.toString());
     }
+
+    private void handleChangePassword(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+
+        String[] parts = command.split("\\|");
+        if (parts.length != 3) {
+            sendResponse("FAIL|Sai format. Dùng: CHANGE_PASSWORD|oldPass|newPass");
+            return;
+        }
+
+        boolean success = userService.changePassword(loggedInUser.getUsername(), parts[1], parts[2]);
+
+        if (success) {
+            sendResponse("SUCCESS|Đổi mật khẩu thành công");
+        } else {
+            sendResponse("FAIL|Sai mật khẩu cũ");
+        }
+    }
+
+    private void handleDeposit(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+
+        String[] parts = command.split("\\|");
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: DEPOSIT|amount");
+            return;
+        }
+
+        try {
+            double amount = Double.parseDouble(parts[1].trim());
+
+            if (amount <= 0) {
+                sendResponse("FAIL|Số tiền nạp phải lớn hơn 0");
+                return;
+            }
+
+            boolean success = userService.updateBalance(loggedInUser.getUsername(), amount);
+
+            if (success) {
+                sendResponse("SUCCESS|Nạp tiền thành công");
+            } else {
+                sendResponse("FAIL|Có lỗi xảy ra khi nạp tiền");
+            }
+
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|Số tiền không hợp lệ");
+        }
+    }
+
+    private void handleCheckBalance(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+
+        double balance = userService.getBalance(loggedInUser.getUsername());
+
+        if (balance >= 0) {
+            sendResponse("BALANCE|" + balance);
+        } else {
+            sendResponse("FAIL|Lỗi khi lấy số dư");
+        }
+    }
+
+    @Override
+    public void onBidUpdate(BidUpdateEvent event) {
+        /*
+         * Không gửi BidUpdateEvent object về JavaFX client.
+         * UI đang dùng request-response String; gửi object xen vào dễ làm client đọc sai.
+         */
+        System.out.println("[Notifier] Có bid update, UI hiện dùng polling nên không gửi object event.");
+    }
+
+    private void sendResponse(String message) throws IOException {
+        out.writeObject(message);
+        out.flush();
+    }
+
     private void cleanup() {
         try {
             auctionNotifier.removeObserver(this);
+
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }

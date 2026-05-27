@@ -149,7 +149,6 @@ public class AuctionService {
             return false;
         }
     }
-
     /**
      * Kiểm tra user có phải chủ phiên đấu giá không.
      */
@@ -259,11 +258,5 @@ public class AuctionService {
             System.err.println("[AuctionService] Lỗi khi tạo phiên đấu giá: " + e.getMessage());
             return false;
         }
-    }
-
-    public List<Auction> getAuctionsByUserId(int userId) {
-        return activeAuctions.values().stream()
-                .filter(a -> a.getItem() != null && a.getItem().getSellerId() == userId)
-                .toList();
     }
 }

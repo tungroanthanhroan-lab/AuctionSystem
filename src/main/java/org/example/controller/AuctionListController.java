@@ -104,7 +104,18 @@ public class AuctionListController {
             String currentPrice = fields[2].trim();
             String status = fields[3].trim();
 
-            String endTime = (fields.length >= 6) ? fields[5].trim() : "";
+            String currentLeader = "";
+            String endTime = "";
+            /*
+             * Backend hiện tại:
+             * auctionId,title,currentPrice,status,currentLeader,endTime
+             */
+            if (fields.length >= 6) {
+                currentLeader = fields[4].trim();
+                endTime = fields[5].trim();
+            } else if (fields.length == 5) {
+                endTime = fields[4].trim();
+            }
 
             /*
              * rawInfo là chuỗi kỹ thuật dùng để truyền sang BiddingController.
@@ -114,6 +125,10 @@ public class AuctionListController {
                     + " - " + title
                     + " - Giá hiện tại: " + currentPrice + "$"
                     + " - Trạng thái: " + status;
+
+            if (!currentLeader.isEmpty() && !currentLeader.equals("-")) {
+                rawInfo += " - Người dẫn đầu: " + currentLeader;
+            }
 
             if (!endTime.isEmpty()) {
                 rawInfo += " - Kết thúc: " + endTime;
@@ -125,6 +140,10 @@ public class AuctionListController {
             String displayText = title
                     + "  •  Giá: " + currentPrice + "$"
                     + "  •  " + formatStatus(status);
+
+            if (!currentLeader.isEmpty() && !currentLeader.equals("-")) {
+                displayText += "  •  Dẫn đầu: " + currentLeader;
+            }
 
             if (!endTime.isEmpty()) {
                 displayText += "  •  Kết thúc: " + formatDateTime(endTime);
