@@ -7,6 +7,13 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import org.example.model.Item;
+
+/**
+ * AuctionDAO — xử lý tất cả tương tác DB liên quan đến bảng auctions.
+ *
+ * HOLD BALANCE: Các phương thức mới placeBidWithHold() và getWinnerInfo()
+ * xử lý việc đóng băng tiền khi bid và lấy thông tin winner khi phiên kết thúc.
+ */
 public class AuctionDAO {
 
     /**
@@ -130,6 +137,146 @@ public class AuctionDAO {
             e.printStackTrace();
             return false;
         }
+    }
+
+    /**
+     * HOLD BALANCE: Đặt giá kết hợp đóng băng tiền trong 1 DB transaction duy nhất.
+     *
+     * Flow trong transaction:
+     *   1. UPDATE auctions (Optimistic Locking) — kiểm tra version khớp rồi tăng lên
+     *   2. Hold tiền của bidder mới (tăng held_balance)
+     *   3. Release tiền của bidder cũ nếu có (giảm held_balance)
+     * Nếu bất kỳ bước nào fail → rollback toàn bộ → dữ liệu nhất quán.
+     *
+     * @param auctionId      id phiên đấu giá
+     * @param newBidder      username người đặt giá mới
+     * @param newAmount      số tiền bid mới
+     * @param expectedVersion version hiện tại trên RAM (Optimistic Locking)
+     * @param prevLeader     username người dẫn đầu cũ (null nếu phiên chưa có ai bid)
+     * @param prevAmount     số tiền bid của người cũ (0 nếu chưa có)
+     * @return true nếu toàn bộ transaction thành công
+     */
+    public boolean placeBidWithHold(String auctionId,
+                                    String newBidder, double newAmount, int expectedVersion,
+                                    String prevLeader, double prevAmount) {
+        Connection conn = DatabaseConnection.getConnection();
+        try {
+            // Bắt đầu transaction — toàn bộ hold/release/update phải là atomic
+            conn.setAutoCommit(false);
+
+            // Bước 1: Cập nhật auction (Optimistic Locking)
+            // Nếu version đã bị người khác tăng trước → rowsAffected = 0 → rollback
+            String updateAuctionSql = "UPDATE auctions "
+                    + "SET current_highest_bid = ?, current_leader = ?, version = version + 1, status = 'RUNNING' "
+                    + "WHERE id = ? AND version = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(updateAuctionSql)) {
+                pstmt.setDouble(1, newAmount);
+                pstmt.setString(2, newBidder);
+                pstmt.setString(3, auctionId);
+                pstmt.setInt(4, expectedVersion);
+                int rows = pstmt.executeUpdate();
+                if (rows == 0) {
+                    // Conflict: version đã bị thay đổi bởi bid khác → thất bại
+                    conn.rollback();
+                    System.out.println("[DB] placeBidWithHold: Optimistic lock conflict — auction=" + auctionId
+                            + " expectedVersion=" + expectedVersion);
+                    return false;
+                }
+            }
+
+            // Bước 2: Hold tiền của bidder mới
+            // Điều kiện: (balance - held_balance) >= newAmount (kiểm tra tại DB)
+            String holdSql = "UPDATE users "
+                    + "SET held_balance = held_balance + ? "
+                    + "WHERE username = ? AND (balance - held_balance) >= ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(holdSql)) {
+                pstmt.setDouble(1, newAmount);
+                pstmt.setString(2, newBidder);
+                pstmt.setDouble(3, newAmount);
+                int rows = pstmt.executeUpdate();
+                if (rows == 0) {
+                    // Không đủ tiền → rollback để giữ nhất quán
+                    conn.rollback();
+                    System.out.println("[DB] placeBidWithHold: " + newBidder
+                            + " không đủ available_balance cho amount=" + newAmount);
+                    return false;
+                }
+            }
+
+            // Bước 3: Release tiền của bidder cũ (nếu có và không phải người đang bid mới)
+            // Trường hợp không có leader cũ: bỏ qua bước này
+            if (prevLeader != null && !prevLeader.isEmpty() && !prevLeader.equals(newBidder) && prevAmount > 0) {
+                String releaseSql = "UPDATE users "
+                        + "SET held_balance = MAX(0, held_balance - ?) "
+                        + "WHERE username = ?";
+                try (PreparedStatement pstmt = conn.prepareStatement(releaseSql)) {
+                    pstmt.setDouble(1, prevAmount);
+                    pstmt.setString(2, prevLeader);
+                    pstmt.executeUpdate();
+                    System.out.println("[DB] placeBidWithHold: Release " + prevAmount
+                            + " cho " + prevLeader + " (bị vượt giá)");
+                }
+            }
+
+            // Commit toàn bộ transaction
+            conn.commit();
+            System.out.println("[DB] placeBidWithHold: Thành công — auction=" + auctionId
+                    + " | bidder=" + newBidder + " | amount=" + newAmount);
+            return true;
+
+        } catch (SQLException e) {
+            try {
+                conn.rollback(); // Đảm bảo rollback nếu có lỗi bất ngờ
+            } catch (SQLException rollbackEx) {
+                System.err.println("[DB] Lỗi rollback: " + rollbackEx.getMessage());
+            }
+            System.err.println("[DB] Lỗi placeBidWithHold: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                conn.setAutoCommit(true); // Khôi phục auto-commit sau transaction
+            } catch (SQLException e) {
+                System.err.println("[DB] Lỗi khôi phục autoCommit: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * HOLD BALANCE: Lấy thông tin winner và seller của một phiên đấu giá.
+     * Dùng khi đóng phiên để biết cần trừ tiền ai và cộng tiền cho ai.
+     *
+     * @param auctionId id phiên
+     * @return mảng [winnerUsername, winnerBidAmount, sellerUsername]
+     *         hoặc null nếu phiên không có ai đặt giá (current_leader = null)
+     */
+    public String[] getWinnerInfo(String auctionId) {
+        String sql = "SELECT a.current_leader, a.current_highest_bid, u.username AS seller_username "
+                + "FROM auctions a "
+                + "JOIN items i ON a.item_id = i.id "
+                + "JOIN users u ON i.seller_id = u.id "
+                + "WHERE a.id = ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, auctionId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    String leader = rs.getString("current_leader");
+                    if (leader == null || leader.isEmpty()) {
+                        return null; // Không có ai đặt giá → không có winner
+                    }
+                    return new String[]{
+                        leader,
+                        String.valueOf(rs.getDouble("current_highest_bid")),
+                        rs.getString("seller_username")
+                    };
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi getWinnerInfo: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return null;
     }
 
     /**

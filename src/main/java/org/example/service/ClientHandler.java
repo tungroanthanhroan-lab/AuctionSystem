@@ -231,13 +231,31 @@ public class ClientHandler implements Runnable, AuctionObserver {
                 return;
             }
 
+            // HOLD BALANCE: Kiểm tra available_balance trước khi gửi xuống AuctionService
+            // available_balance = balance - held_balance
+            // Giúp trả về thông báo lỗi rõ ràng cho client ngay tại đây,
+            // thay vì để AuctionService reject mà không giải thích lý do.
+            double availableBalance = userService.getAvailableBalance(bidderName);
+            if (availableBalance < amount) {
+                sendResponse("FAIL|Đặt giá thất bại. Số dư khả dụng không đủ: "
+                        + String.format("%.2f", availableBalance)
+                        + " (cần: " + String.format("%.2f", amount) + ")");
+                return;
+            }
+
+            // AuctionService.placeBid() sẽ thực hiện hold tiền + update auction trong 1 DB transaction
             boolean success = auctionService.placeBid(auctionId, bidderName, amount);
 
             if (success) {
+                // Ghi vào bảng bids để lưu lịch sử đấu giá (audit trail)
                 bidDAO.placeBid(Integer.parseInt(auctionId), loggedInUser.getId(), amount);
-                sendResponse("SUCCESS|Đặt giá " + amount + " thành công!");
+
+                // Trả về cả available_balance mới sau khi hold để client có thể hiển thị
+                double newAvailable = userService.getAvailableBalance(bidderName);
+                sendResponse("SUCCESS|Đặt giá " + amount + " thành công!"
+                        + " | Số dư khả dụng còn: " + String.format("%.2f", newAvailable));
             } else {
-                sendResponse("FAIL|Đặt giá thất bại. Giá quá thấp hoặc phiên đã đóng.");
+                sendResponse("FAIL|Đặt giá thất bại. Giá quá thấp, phiên đã đóng, hoặc xảy ra xung đột đồng thời.");
             }
 
         } catch (NumberFormatException e) {
@@ -267,11 +285,17 @@ public class ClientHandler implements Runnable, AuctionObserver {
             return;
         }
 
+        // HOLD BALANCE: closeAuction() sẽ tự xử lý:
+        //   - Trừ balance thật của winner + release held
+        //   - Cộng tiền cho seller
+        //   - Những bidder thua không cần xử lý (held đã được release từng lần bị vượt giá)
         boolean success = auctionService.closeAuction(auctionId);
 
-        sendResponse(success
-                ? "SUCCESS|Phiên đấu giá đã được đóng thành công"
-                : "FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
+        if (success) {
+            sendResponse("SUCCESS|Phiên đấu giá đã được đóng thành công. Tiền đã được thanh toán cho winner và seller.");
+        } else {
+            sendResponse("FAIL|Đóng phiên thất bại hoặc phiên không tồn tại");
+        }
     }
 
     private void handleGetBidHistory(String command) throws IOException {
@@ -404,10 +428,20 @@ public class ClientHandler implements Runnable, AuctionObserver {
             return;
         }
 
-        double balance = userService.getBalance(loggedInUser.getUsername());
+        String username = loggedInUser.getUsername();
+
+        // HOLD BALANCE: Trả về cả 3 giá trị để client hiển thị đầy đủ tình trạng tài chính:
+        //   balance       — số dư gốc (bao gồm cả phần đang bị hold)
+        //   held_balance  — phần đang bị đóng băng cho bid hiện tại
+        //   available     — phần có thể dùng để bid mới (= balance - held_balance)
+        double balance   = userService.getBalance(username);
+        double held      = userService.getHeldBalance(username);
+        double available = userService.getAvailableBalance(username);
 
         if (balance >= 0) {
-            sendResponse("BALANCE|" + balance);
+            // Format: BALANCE|<balance>|<held>|<available>
+            // Client có thể parse theo pipe để hiển thị riêng từng mục
+            sendResponse("BALANCE|" + balance + "|" + held + "|" + available);
         } else {
             sendResponse("FAIL|Lỗi khi lấy số dư");
         }
