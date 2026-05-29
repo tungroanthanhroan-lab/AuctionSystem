@@ -16,11 +16,20 @@ import java.util.concurrent.Executors;
  */
 public class AuctionClient {
 
-    private static final String HOST = "localhost";
+    private static String HOST = "localhost";
     private static final int PORT = 8080;
 
     public static void main(String[] args) {
         System.out.println("=== Auction Client ===");
+
+        Scanner ipScanner = new Scanner(System.in);
+        System.out.print("Nhập IP máy chủ (Nhấn Enter để dùng localhost): ");
+        String inputIp = ipScanner.nextLine().trim();
+
+        if (!inputIp.isEmpty()) {
+            HOST = inputIp; // Ghi đè biến HOST bằng IP vừa nhập
+        }
+
         System.out.println("Đang kết nối tới " + HOST + ":" + PORT + " ...");
 
         try (Socket socket = new Socket(HOST, PORT)) {

@@ -46,7 +46,8 @@ public class AuctionServer {
         // ── Khởi tạo Services ──
         AuctionNotifier notifier = new AuctionNotifier();
         UserService userService = new UserService(userDAO);
-        AuctionService auctionService = new AuctionService(auctionDAO, notifier);
+        // HOLD BALANCE: Truyền thêm userDAO vào AuctionService để xử lý hold/release/deduct tiền
+        AuctionService auctionService = new AuctionService(auctionDAO, notifier, userDAO);
 
         // FIX BUG 10: ThreadPool có giới hạn, không tạo thread vô hạn
         ExecutorService clientPool = Executors.newFixedThreadPool(MAX_THREADS);
