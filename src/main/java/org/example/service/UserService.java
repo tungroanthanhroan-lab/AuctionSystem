@@ -3,14 +3,6 @@ package org.example.service;
 import org.example.dao.UserDAO;
 import org.example.model.User;
 
-/**
- * UserService — user management business layer.
- *
- * MERGE NOTE: Master version kept in full. Rebuild only had login() and register().
- * The additional methods here (getBalance, getHeldBalance, getAvailableBalance,
- * updateBalance, changePassword) are required by ClientHandler for the full command
- * set (CHECK_BALANCE, DEPOSIT, CHANGE_PASSWORD) used by the JavaFX UI.
- */
 public class UserService {
 
     private final UserDAO userDAO;
@@ -27,22 +19,22 @@ public class UserService {
         return userDAO.registerUser(username, password, role);
     }
 
-    /** Raw balance (includes held portion). Use getAvailableBalance() for bidding checks. */
+    /** Số dư tổng/thô (bao gồm cả phần đang bị tạm giữ). Hãy dùng getAvailableBalance() để kiểm tra khi đặt giá (bid). */
     public double getBalance(String username) {
         return userDAO.getBalance(username);
     }
 
-    /** Money currently locked for active bids. */
+    /** Số tiền hiện đang bị khóa/tạm giữ cho các lượt đặt giá đang diễn ra. */
     public double getHeldBalance(String username) {
         return userDAO.getHeldBalance(username);
     }
 
-    /** Money the user can actually spend (balance - held_balance). */
+    /** Số tiền thực tế người dùng có thể chi tiêu (số dư tổng - số tiền tạm giữ). */
     public double getAvailableBalance(String username) {
         return userDAO.getAvailableBalance(username);
     }
 
-    /** Deposit / credit money. Also used to pay seller on auction close. */
+    /** Nạp tiền / cộng tiền vào tài khoản. Đồng thời cũng được dùng để thanh toán cho người bán khi phiên đấu giá kết thúc. */
     public boolean updateBalance(String username, double amount) {
         return userDAO.updateBalance(username, amount);
     }

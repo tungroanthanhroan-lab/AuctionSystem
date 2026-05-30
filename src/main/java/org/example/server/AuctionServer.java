@@ -17,11 +17,8 @@ import java.util.concurrent.Executors;
 
 /**
  * Entry point for the Auction Server.
- *
- * MERGE NOTE: Based on rebuild's clean, well-commented version.
- * Key change: AuctionService now receives userDAO as a third argument
- * (required by the merged AuctionService for HOLD BALANCE feature).
  */
+
 public class AuctionServer {
 
     private static final int PORT        = 8080;

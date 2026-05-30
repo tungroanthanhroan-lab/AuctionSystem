@@ -21,14 +21,14 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration test cho tính năng Auto-Bidding và Anti-Sniping trong AuctionService.
  *
- * KEY DESIGN:
- *   All bids go through auctionService.placeBid() — NOT auctionNormal.placeBid() directly.
- *   This is required because triggerAutoBids() is only called from inside AuctionService.placeBid().
- *   Calling Auction.placeBid() directly bypasses the entire auto-bid orchestration.
+ * THIẾT KẾ CỐT LÕI:
+ * Tất cả các lượt đặt giá (bid) đều đi qua auctionService.placeBid() — KHÔNG gọi trực tiếp auctionNormal.placeBid().
+ * Điều này là bắt buộc vì triggerAutoBids() chỉ được gọi từ bên trong AuctionService.placeBid().
+ * Gọi trực tiếp Auction.placeBid() sẽ bỏ qua toàn bộ quy trình điều phối tự động đặt giá.
  *
- *   To make auctionService.placeBid() work without a real DB:
- *     - StubAuctionDAO: all write operations return true (no-op)
- *     - StubUserDAO: getAvailableBalance() always returns 999_999 (balance check always passes)
+ * Để auctionService.placeBid() hoạt động mà không cần cơ sở dữ liệu thật:
+ * - StubAuctionDAO: tất cả các thao tác ghi đều trả về true (không gây tác động thực tế - no-op)
+ * - StubUserDAO: getAvailableBalance() luôn trả về 999_999 (bước kiểm tra số dư luôn thành công)
  */
 public class AdvancedAuctionTest {
 
@@ -53,7 +53,7 @@ public class AdvancedAuctionTest {
         Item item = new Item(1, "iPhone 15", "Brand new", 100.0, 100.0,
                 "2026-12-31", 1, "OPEN");
 
-        // Normal session — 1 hour left (outside snipe window)
+        // Phiên thông thường — còn 1 tiếng (nằm ngoài khung giờ chống bắn tỉa/snipe window)
         auctionNormal = new Auction(
                 "A001", item, null, AuctionStatus.RUNNING,
                 100.0,
@@ -62,7 +62,7 @@ public class AdvancedAuctionTest {
                 notifier
         );
 
-        // Near-end session — 30 seconds left (inside 60-second snipe window)
+        // Phiên sắp kết thúc — còn 30 giây (nằm trong khung giờ chống bắn tỉa 60 giây cuối)
         auctionNearEnd = new Auction(
                 "A002", item, null, AuctionStatus.RUNNING,
                 100.0,
@@ -71,8 +71,8 @@ public class AdvancedAuctionTest {
                 notifier
         );
 
-        // StubUserDAO always returns a large available balance so balance checks pass.
-        // StubAuctionDAO makes all DB writes succeed as no-ops.
+        // StubUserDAO luôn trả về số dư khả dụng lớn để các bước kiểm tra số dư đều thành công.
+        // StubAuctionDAO cho phép tất cả các thao tác ghi DB thành công mà không làm gì cả (no-ops).
         auctionService = new AuctionService(
                 new StubAuctionDAO(),
                 notifier,
@@ -89,25 +89,25 @@ public class AdvancedAuctionTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // AUTO-BIDDING TESTS
+    // CÁC TEST CHO TÍNH NĂNG TỰ ĐỘNG ĐẶT GIÁ (AUTO-BIDDING)
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * When Alice bids manually, Bob's registered auto-bid must fire automatically.
-     * Bob: maxBid=300, increment=20 → auto-bids to 170 (150 + 20).
+     * Khi Alice đặt giá thủ công, lệnh tự động đặt giá đã đăng ký của Bob phải tự động kích hoạt.
+     * Bob: giá tối đa (maxBid) = 300, bước giá (increment) = 20 → tự động nâng giá lên 170 (150 + 20).
      *
-     * IMPORTANT: bid goes through auctionService.placeBid(), not auction.placeBid() directly,
-     * because triggerAutoBids() is only called from AuctionService.placeBid().
+     * QUAN TRỌNG: lượt đặt giá đi qua auctionService.placeBid(), không gọi trực tiếp auction.placeBid(),
+     * vì triggerAutoBids() chỉ được gọi từ AuctionService.placeBid().
      */
     @Test
     public void testAutoBid_TriggeredAfterManualBid() throws InterruptedException {
         AutoBidConfig bobConfig = new AutoBidConfig(bob, 300.0, 20.0);
         auctionService.registerAutoBid("A001", bobConfig);
 
-        // Route through the service — this triggers the auto-bid thread
+        // Đi qua service — điều này sẽ kích hoạt luồng (thread) tự động đặt giá
         auctionService.placeBid("A001", "Alice", 150.0);
 
-        // Give the auto-bid background thread time to execute
+        // Dành thời gian để luồng chạy ngầm auto-bid thực thi
         Thread.sleep(500);
 
         Auction auction = auctionService.getAuction("A001");
@@ -118,8 +118,8 @@ public class AdvancedAuctionTest {
     }
 
     /**
-     * Auto-bid must NOT exceed the registered maxBid.
-     * Bob: maxBid=160, increment=20. Alice bids 150. Next would be 170 > 160 → blocked.
+     * Auto-bid KHÔNG ĐƯỢC vượt quá mức giá tối đa (maxBid) đã đăng ký.
+     * Bob: maxBid=160, increment=20. Alice đặt 150. Lần nâng giá tiếp theo sẽ là 170 > 160 → bị chặn.
      */
     @Test
     public void testAutoBid_DoesNotExceedMaxBid() throws InterruptedException {
@@ -138,42 +138,42 @@ public class AdvancedAuctionTest {
 
 
     /**
-     * When two bidders both have auto-bid registered with equal maxBid,
-     * the one who registered EARLIER wins the final position.
+     * Khi hai người tham gia đều đăng ký auto-bid với cùng mức giá tối đa,
+     * người nào đăng ký SỚM HƠN sẽ giành vị trí dẫn đầu cuối cùng.
      *
      * Logic:
-     *   Alice manually bids 150 → triggers auto-bid chain.
-     *   Bob registered first, Charlie second — both have maxBid=500, increment=20.
-     *   Each round: the earliest-registered eligible bidder gets the next auto-bid.
-     *   Bob is always picked first, so Bob always responds to Charlie.
-     *   Escalation: 170(Bob) → 190(Charlie) → 210(Bob) → ... → 490(Bob) → Charlie would need
-     *   510 but 510 > 500 → Charlie stops. Bob wins at 490.
+     * Alice đặt giá 150 thủ công → kích hoạt chuỗi auto-bid.
+     * Bob đăng ký trước, Charlie đăng ký sau — cả hai đều có maxBid=500, increment=20.
+     * Mỗi vòng: người đăng ký sớm nhất đủ điều kiện sẽ nhận được lượt auto-bid tiếp theo.
+     * Bob luôn được ưu tiên, nên Bob sẽ luôn phản hồi lại Charlie.
+     * Leo thang giá: 170(Bob) → 190(Charlie) → 210(Bob) → ... → 490(Bob) → Charlie cần
+     * đặt 510 nhưng 510 > 500 → Charlie dừng lại. Bob thắng ở mức 490.
      *
-     * The test gives 3 seconds for the chain to finish (it typically completes in < 500 ms).
+     * Test này cho 3 giây để chuỗi hoàn tất (thông thường nó xử lý xong trong < 500 ms).
      */
     @Test
     public void testAutoBid_PriorityByRegistrationTime() throws InterruptedException {
-        // Bob registers first, Charlie a moment later — same maxBid and increment
+        // Bob đăng ký trước, Charlie đăng ký sau một chút — cùng maxBid và increment
         AutoBidConfig bobConfig = new AutoBidConfig(bob, 500.0, 20.0);
-        Thread.sleep(20); // ensure distinct registeredAt timestamps
+        Thread.sleep(20); // đảm bảo mốc thời gian đăng ký (registeredAt) là khác biệt
         AutoBidConfig charlieConfig = new AutoBidConfig(charlie, 500.0, 20.0);
 
         auctionService.registerAutoBid("A001", bobConfig);
         auctionService.registerAutoBid("A001", charlieConfig);
 
-        // Alice's manual bid kicks off the auto-bid chain
+        // Lượt đặt giá thủ công của Alice bắt đầu chuỗi tự động đặt giá
         auctionService.placeBid("A001", "Alice", 150.0);
 
-        // Allow enough time for the full escalation chain to complete
+        // Cho đủ thời gian để toàn bộ chuỗi leo thang giá hoàn tất
         Thread.sleep(3000);
 
         Auction auction = auctionService.getAuction("A001");
 
-        // Bob registered earlier → Bob wins the final position in the chain
+        // Bob đăng ký sớm hơn → Bob chiến thắng ở vị trí cuối cùng trong chuỗi
         assertEquals("Bob", auction.getCurrentLeader().getUsername(),
                 "Bob đăng ký trước nên thắng cuối cùng khi cả hai có cùng maxBid");
 
-        // Price must have escalated well beyond Alice's initial 150
+        // Giá chắc chắn đã leo thang qua nhiều bước, vượt xa mức 150 ban đầu của Alice
         assertTrue(auction.getCurrentHighestBid() > 170.0,
                 "Giá phải leo thang qua nhiều vòng auto-bid, không dừng ở 170");
 
@@ -182,7 +182,7 @@ public class AdvancedAuctionTest {
     }
 
     /**
-     * Cancel auto-bid: after cancellation, Bob should not automatically counter Alice.
+     * Hủy tự động đặt giá: sau khi hủy, Bob sẽ không tự động đặt giá đáp trả Alice.
      */
     @Test
     public void testCancelAutoBid() throws InterruptedException {
@@ -202,11 +202,11 @@ public class AdvancedAuctionTest {
     }
 
     /**
-     * Registering auto-bid with maxBid lower than current price → InvalidBidException.
+     * Đăng ký auto-bid với maxBid thấp hơn giá hiện tại → sẽ ném ngoại lệ InvalidBidException.
      */
     @Test
     public void testRegisterAutoBid_Fail_MaxBidTooLow() {
-        // Set current price to 200 via the service
+        // Thiết lập giá hiện tại lên 200 thông qua service
         auctionService.placeBid("A001", "Alice", 200.0);
 
         AutoBidConfig badConfig = new AutoBidConfig(bob, 150.0, 10.0);
@@ -216,7 +216,7 @@ public class AdvancedAuctionTest {
     }
 
     /**
-     * Registering auto-bid on a FINISHED session → AuctionClosedException.
+     * Đăng ký auto-bid vào một phiên đã KẾT THÚC → sẽ ném ngoại lệ AuctionClosedException.
      */
     @Test
     public void testRegisterAutoBid_Fail_AuctionClosed() {
@@ -229,18 +229,18 @@ public class AdvancedAuctionTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // ANTI-SNIPING TESTS
-    // Anti-snipe logic lives in AuctionService.placeBid — tested through the service.
+    // CÁC TEST CHO TÍNH NĂNG CHỐNG BẮN TỈA (ANTI-SNIPING)
+    // Logic chống bắn tỉa nằm ở AuctionService.placeBid — được test thông qua service.
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * Bidding inside the snipe window (< 60 seconds left) must extend endTime.
+     * Đặt giá trong khung giờ chống bắn tỉa (< 60 giây cuối) sẽ phải kéo dài thêm thời gian kết thúc (endTime).
      */
     @Test
     public void testAntiSnipe_ExtendsEndTime() {
         LocalDateTime originalEndTime = auctionNearEnd.getEndTime();
 
-        // Bid via the service — anti-snipe extension happens inside AuctionService.placeBid()
+        // Đặt giá qua service — việc gia hạn thời gian chống bắn tỉa diễn ra trong AuctionService.placeBid()
         auctionService.placeBid("A002", "Alice", 150.0);
 
         LocalDateTime newEndTime = auctionService.getAuction("A002").getEndTime();
@@ -253,13 +253,13 @@ public class AdvancedAuctionTest {
     }
 
     /**
-     * Bidding when plenty of time remains (outside snipe window) → endTime unchanged.
+     * Đặt giá khi vẫn còn dồi dào thời gian (nằm ngoài khung giờ chống bắn tỉa) → endTime không đổi.
      */
     @Test
     public void testAntiSnipe_NoExtensionWhenNotNearEnd() {
         LocalDateTime originalEndTime = auctionNormal.getEndTime();
 
-        // Session has 1 hour left — outside the 60-second snipe window
+        // Phiên đấu giá còn 1 tiếng — nằm ngoài khung giờ chống bắn tỉa 60 giây
         auctionService.placeBid("A001", "Alice", 150.0);
 
         assertEquals(originalEndTime, auctionService.getAuction("A001").getEndTime(),
@@ -267,10 +267,10 @@ public class AdvancedAuctionTest {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // STUBS — avoid a real DB connection in unit tests
+    // CÁC LỚP GIẢ (STUBS) — tránh việc phải kết nối tới DB thật trong các unit test
     // ════════════════════════════════════════════════════════════════
 
-    /** AuctionDAO stub: all writes succeed as no-ops; getAllOpenAuctions returns empty list. */
+    /** Lớp giả cho AuctionDAO: mọi thao tác ghi đều coi như thành công (no-ops); getAllOpenAuctions trả về danh sách rỗng. */
     private static class StubAuctionDAO extends org.example.dao.AuctionDAO {
         @Override public void createTable() {}
         @Override public boolean startAuction(int itemId, String endTime) { return true; }
@@ -282,8 +282,8 @@ public class AdvancedAuctionTest {
     }
 
     /**
-     * UserDAO stub: getAvailableBalance() always returns 999_999 so balance checks
-     * inside AuctionService.placeBid() always pass. All other methods are no-ops.
+     * Lớp giả cho UserDAO: getAvailableBalance() luôn trả về 999_999 để các bước kiểm tra số dư
+     * bên trong AuctionService.placeBid() luôn vượt qua. Mọi phương thức khác đều không gây tác động (no-ops).
      */
     private static class StubUserDAO extends org.example.dao.UserDAO {
         @Override public void createTableIfNotExists() {}

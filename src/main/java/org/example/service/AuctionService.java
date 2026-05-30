@@ -16,28 +16,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * AuctionService — all auction business logic.
- *
- * MERGE NOTES:
- *  - Constructor: now takes (AuctionDAO, AuctionNotifier, UserDAO) — master's signature.
- *    The rebuild only took (AuctionDAO, AuctionNotifier) because it had no HOLD BALANCE.
- *    AuctionServer.java must be updated to pass userDAO here (see server package).
- *
- *  - placeBid(): uses master's HOLD BALANCE flow (placeBidWithHold DB transaction) instead of
- *    rebuild's simpler updateBidWithOptimisticLock. Anti-Snipe logic from rebuild is also kept.
- *
- *  - Auto-Bid: kept in full from rebuild (registerAutoBid, cancelAutoBid, triggerAutoBids).
- *    The autoBid loop calls updateBidWithOptimisticLock (no money held for auto-bids — fine
- *    for a student project; production would need held_balance for auto-bids too).
- *
- *  - closeAuction(): master's full payment flow (deductBalanceOnWin + updateBalance for seller).
- *
- *  - createAuctionWithNewItem(): from master (creates both item and auction in one transaction).
- *    isAuctionOwner() and getAuctionsBySellerId() also from master (needed by UI commands).
- *
- *  - Test helpers (getAuction, getAutoBidCount, addAuctionForTest): from rebuild.
- */
 public class AuctionService {
 
     private final AuctionDAO auctionDAO;

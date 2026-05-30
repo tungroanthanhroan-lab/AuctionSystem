@@ -5,12 +5,6 @@ import java.io.Serializable;
 
 /**
  * Event broadcast to all connected clients when a new bid succeeds.
- *
- * MERGE NOTE: This is the rebuild version. The key difference from master:
- *   - Stores auctionId as a plain String instead of an Auction reference.
- *   - This avoids circular serialization issues when sending over ObjectOutputStream.
- *   - getBidder() returns String (username), not the full Bidder object,
- *     so AuctionClient can print it without needing the full class on the client side.
  */
 public class BidUpdateEvent implements Serializable {
     private String auctionId;

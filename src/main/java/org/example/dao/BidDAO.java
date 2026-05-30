@@ -12,11 +12,7 @@ import java.util.List;
 
 /**
  * BidDAO — handles all DB interactions for the bids table.
- *
- * MERGE NOTE: Master version kept. Rebuild dropped getBidHistory() because the rebuild
- * branch had no UI to display it. The UI's BiddingController (from master) calls
- * GET_BID_HISTORY which requires this method.
- */
+ **/
 public class BidDAO {
 
     public void createTable() {

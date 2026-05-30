@@ -13,12 +13,8 @@ import org.example.model.User;
 
 /**
  * UserDAO — handles all DB interactions for the users table.
- *
- * MERGE NOTES:
- *  - Master version kept in full: it adds held_balance column, getAvailableBalance(),
- *    deductBalanceOnWin(), changePassword(), and auto-migration helpers.
- *  - Rebuild only had the basic CRUD (register, login) — insufficient for the full UI.
- */
+ **/
+
 public class UserDAO {
 
     /**

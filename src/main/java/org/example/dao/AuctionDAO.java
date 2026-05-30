@@ -12,15 +12,6 @@ import java.util.List;
 /**
  * AuctionDAO — handles all DB interactions for the auctions table.
  *
- * MERGE NOTES:
- *  - getAllOpenAuctions() now does a JOIN with items to populate Item data on each Auction.
- *    The master version already had this; the rebuild simplified it away (since rebuild had
- *    no UI needing item titles). We keep the JOIN so that VIEW_ITEMS returns proper titles
- *    without an extra round-trip.
- *  - placeBidWithHold(), getWinnerInfo(), createAuctionWithNewItem(), getAuctionsBySellerId(),
- *    isAuctionOwner() are all from master — they power the HOLD BALANCE feature and the full
- *    UI command set. The rebuild did not have these.
- *  - insertAuction() and updateBidWithOptimisticLock() are present in both branches identically.
  */
 public class AuctionDAO {
 
@@ -63,12 +54,7 @@ public class AuctionDAO {
 
     /**
      * Load all OPEN or RUNNING auctions from DB, including their Item data (via JOIN).
-     *
-     * MERGE: Master had this JOIN. Rebuild dropped it. We keep the JOIN because
-     * the UI needs item titles in VIEW_ITEMS without an extra DAO call.
-     * The Auction DB-constructor (int id, int itemId, String, String, String) is used,
-     * then Item is set separately via auction.setItem(item).
-     */
+     **/
     public List<Auction> getAllOpenAuctions() {
         List<Auction> list = new ArrayList<>();
         String sql = "SELECT a.*, i.title, i.description, i.starting_price, i.current_price, "
