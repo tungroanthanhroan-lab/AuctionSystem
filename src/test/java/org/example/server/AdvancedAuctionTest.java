@@ -136,6 +136,51 @@ public class AdvancedAuctionTest {
                 "Alice vẫn phải là người dẫn đầu");
     }
 
+
+    /**
+     * When two bidders both have auto-bid registered with equal maxBid,
+     * the one who registered EARLIER wins the final position.
+     *
+     * Logic:
+     *   Alice manually bids 150 → triggers auto-bid chain.
+     *   Bob registered first, Charlie second — both have maxBid=500, increment=20.
+     *   Each round: the earliest-registered eligible bidder gets the next auto-bid.
+     *   Bob is always picked first, so Bob always responds to Charlie.
+     *   Escalation: 170(Bob) → 190(Charlie) → 210(Bob) → ... → 490(Bob) → Charlie would need
+     *   510 but 510 > 500 → Charlie stops. Bob wins at 490.
+     *
+     * The test gives 3 seconds for the chain to finish (it typically completes in < 500 ms).
+     */
+    @Test
+    public void testAutoBid_PriorityByRegistrationTime() throws InterruptedException {
+        // Bob registers first, Charlie a moment later — same maxBid and increment
+        AutoBidConfig bobConfig = new AutoBidConfig(bob, 500.0, 20.0);
+        Thread.sleep(20); // ensure distinct registeredAt timestamps
+        AutoBidConfig charlieConfig = new AutoBidConfig(charlie, 500.0, 20.0);
+
+        auctionService.registerAutoBid("A001", bobConfig);
+        auctionService.registerAutoBid("A001", charlieConfig);
+
+        // Alice's manual bid kicks off the auto-bid chain
+        auctionService.placeBid("A001", "Alice", 150.0);
+
+        // Allow enough time for the full escalation chain to complete
+        Thread.sleep(3000);
+
+        Auction auction = auctionService.getAuction("A001");
+
+        // Bob registered earlier → Bob wins the final position in the chain
+        assertEquals("Bob", auction.getCurrentLeader().getUsername(),
+                "Bob đăng ký trước nên thắng cuối cùng khi cả hai có cùng maxBid");
+
+        // Price must have escalated well beyond Alice's initial 150
+        assertTrue(auction.getCurrentHighestBid() > 170.0,
+                "Giá phải leo thang qua nhiều vòng auto-bid, không dừng ở 170");
+
+        System.out.println("[Priority Test] Giá cuối: " + auction.getCurrentHighestBid()
+                + " | Người thắng: " + auction.getCurrentLeader().getUsername());
+    }
+
     /**
      * Cancel auto-bid: after cancellation, Bob should not automatically counter Alice.
      */
