@@ -7,6 +7,9 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -21,6 +24,7 @@ import org.example.service.NetworkService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class BiddingController {
 
@@ -54,6 +58,27 @@ public class BiddingController {
     @FXML
     private Button btnDongPhien;
 
+    // ── Bid-History Chart ──────────────────────────────────────────────────
+    @FXML
+    private LineChart<Number, Number> bidChart;
+
+    @FXML
+    private NumberAxis xAxis;
+
+    @FXML
+    private NumberAxis yAxis;
+
+    /** Single data series shown on the chart. */
+    private XYChart.Series<Number, Number> bidSeries;
+
+    /**
+     * Epoch-second of the first bid recorded for this session.
+     * All subsequent X-axis values are expressed as "seconds since first bid"
+     * so the axis stays readable.
+     */
+    private long chartEpochOrigin = -1;
+    // ──────────────────────────────────────────────────────────────────────
+
     private Timeline countdownTimeline;
     private Timeline refreshTimeline;
 
@@ -67,6 +92,97 @@ public class BiddingController {
     private final NetworkService networkService = new NetworkService();
 
     private double giaHienTai = 0.0;
+
+    // ── Chart initialisation ───────────────────────────────────────────────
+    /**
+     * Called automatically by the FXML loader after all @FXML fields are
+     * injected.  We set up the series here so the chart is ready before
+     * setAuctionInfo() fires.
+     */
+    @FXML
+    public void initialize() {
+        // Keyboard shortcuts (unchanged from original)
+        txtNhapGia.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
+                btnDatGia.requestFocus();
+                event.consume();
+            }
+        });
+
+        btnDatGia.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.DOWN) {
+                if (btnDongPhien.isVisible()) {
+                    btnDongPhien.requestFocus();
+                } else {
+                    btnQuayLai.requestFocus();
+                }
+                event.consume();
+            } else if (event.getCode() == KeyCode.UP) {
+                txtNhapGia.requestFocus();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ENTER) {
+                handleDatGia();
+                event.consume();
+            }
+        });
+
+        btnDongPhien.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.DOWN) {
+                btnQuayLai.requestFocus();
+                event.consume();
+            } else if (event.getCode() == KeyCode.UP) {
+                btnDatGia.requestFocus();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ENTER) {
+                handleDongPhien();
+                event.consume();
+            }
+        });
+
+        btnQuayLai.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.UP) {
+                if (btnDongPhien.isVisible()) {
+                    btnDongPhien.requestFocus();
+                } else {
+                    btnDatGia.requestFocus();
+                }
+                event.consume();
+            } else if (event.getCode() == KeyCode.ENTER) {
+                handleBackToAuctionList();
+                event.consume();
+            }
+        });
+
+        // ── Chart setup ────────────────────────────────────────────────────
+        bidSeries = new XYChart.Series<>();
+        bidSeries.setName("Giá đặt ($)");
+
+        if (bidChart != null) {
+            bidChart.getData().add(bidSeries);
+            bidChart.setAnimated(false);          // smoother live updates
+            bidChart.setCreateSymbols(true);
+            bidChart.setLegendVisible(false);
+
+            if (xAxis != null) {
+                xAxis.setAutoRanging(true);
+                xAxis.setTickLabelFormatter(new javafx.util.StringConverter<Number>() {
+                    @Override
+                    public String toString(Number n) {
+                        // Show elapsed seconds as "Xs" label
+                        return n.intValue() + "s";
+                    }
+                    @Override
+                    public Number fromString(String s) { return 0; }
+                });
+            }
+
+            if (yAxis != null) {
+                yAxis.setAutoRanging(true);
+                yAxis.setForceZeroInRange(false);
+            }
+        }
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     @FXML
     public void setAuctionInfo(String auctionInfo) {
@@ -98,12 +214,6 @@ public class BiddingController {
 
             lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
 
-            /*
-             * Ưu tiên lấy người dẫn đầu từ chuỗi server truyền sang.
-             *
-             * Ví dụ:
-             * "... - Người dẫn đầu: admin - Kết thúc: 2026-05-30T23:59"
-             */
             String highestBidder = "Chưa có";
 
             if (originalAuctionInfo.contains("Người dẫn đầu:")) {
@@ -199,12 +309,6 @@ public class BiddingController {
             txtNhapGia.setDisable(!phienDangMo);
             btnDatGia.setDisable(!phienDangMo);
 
-            /*
-             * Cho cả ADMIN và USER thấy nút Đóng phiên.
-             * Backend sẽ kiểm tra quyền thật:
-             * - ADMIN đóng mọi phiên
-             * - USER chỉ đóng phiên do chính mình tạo
-             */
             btnDongPhien.setVisible(true);
             btnDongPhien.setManaged(true);
             btnDongPhien.setDisable(!phienDangMo);
@@ -435,10 +539,6 @@ public class BiddingController {
                 String auctionData = parts[i];
                 String[] fields = auctionData.split(",", -1);
 
-                /*
-                 * Format backend hiện tại:
-                 * auctionId,title,currentHighestBid,status,currentLeader,endTime
-                 */
                 if (fields.length < 4) {
                     continue;
                 }
@@ -639,64 +739,7 @@ public class BiddingController {
         }
     }
 
-    @FXML
-    public void initialize() {
-        txtNhapGia.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.ENTER) {
-                btnDatGia.requestFocus();
-                event.consume();
-            }
-        });
-
-        btnDatGia.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.DOWN) {
-                if (btnDongPhien.isVisible()) {
-                    btnDongPhien.requestFocus();
-                } else {
-                    btnQuayLai.requestFocus();
-                }
-                event.consume();
-
-            } else if (event.getCode() == KeyCode.UP) {
-                txtNhapGia.requestFocus();
-                event.consume();
-
-            } else if (event.getCode() == KeyCode.ENTER) {
-                handleDatGia();
-                event.consume();
-            }
-        });
-
-        btnDongPhien.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.DOWN) {
-                btnQuayLai.requestFocus();
-                event.consume();
-
-            } else if (event.getCode() == KeyCode.UP) {
-                btnDatGia.requestFocus();
-                event.consume();
-
-            } else if (event.getCode() == KeyCode.ENTER) {
-                handleDongPhien();
-                event.consume();
-            }
-        });
-
-        btnQuayLai.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.UP) {
-                if (btnDongPhien.isVisible()) {
-                    btnDongPhien.requestFocus();
-                } else {
-                    btnDatGia.requestFocus();
-                }
-                event.consume();
-
-            } else if (event.getCode() == KeyCode.ENTER) {
-                handleBackToAuctionList();
-                event.consume();
-            }
-        });
-    }
+    // ── Bid history + chart ────────────────────────────────────────────────
 
     private void loadBidHistoryFromServer() {
         try {
@@ -723,15 +766,16 @@ public class BiddingController {
 
             listLichSuBid.getItems().clear();
 
+            // Reset chart for a full redraw based on authoritative server data
+            rebuildChart(response);
+
             String[] parts = response.split("\\|");
 
             /*
-             * Format backend mới:
-             * BID_HISTORY|auctionId|userId,username,bidAmount,bidTime|...
-             *
+             * Format: BID_HISTORY|auctionId|userId,username,bidAmount,bidTime|...
              * parts[0] = BID_HISTORY
              * parts[1] = auctionId
-             * parts[2...] = lịch sử bid thật
+             * parts[2..] = bid records
              */
             if (parts.length <= 2) {
                 listLichSuBid.getItems().add("Chưa có lượt đặt giá nào.");
@@ -757,5 +801,75 @@ public class BiddingController {
         } catch (Exception e) {
             System.out.println("[BidHistory] Lỗi load lịch sử bid: " + e.getMessage());
         }
+    }
+
+    /**
+     * Rebuilds the LineChart from the raw BID_HISTORY response string.
+     *
+     * Each data point is (elapsedSeconds, bidAmount).  Using elapsed seconds
+     * keeps the X-axis compact regardless of when the auction started.
+     *
+     * Format expected: BID_HISTORY|auctionId|userId,username,bidAmount,bidTime|...
+     * bidTime format: "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-ddTHH:mm:ss"
+     */
+    private void rebuildChart(String bidHistoryResponse) {
+        if (bidChart == null || bidSeries == null) return;
+
+        Platform.runLater(() -> {
+            bidSeries.getData().clear();
+            chartEpochOrigin = -1;
+
+            String[] parts = bidHistoryResponse.split("\\|");
+            if (parts.length <= 2) return;   // no bids yet
+
+            DateTimeFormatter fmt1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            DateTimeFormatter fmt2 = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+            // ── Step 1: parse all valid bids into a list ─────────────────
+            java.util.List<long[]> bids = new java.util.ArrayList<>();
+            // each entry: [epochSec, amountBits] — store amount as bits for long array
+
+            java.util.List<double[]> bidPairs = new java.util.ArrayList<>();
+            // each entry: [epochSec as double, amount]
+
+            for (int i = 2; i < parts.length; i++) {
+                String[] fields = parts[i].split(",", -1);
+                if (fields.length < 4) continue;
+
+                try {
+                    double amount = Double.parseDouble(fields[2].trim());
+                    String timeStr = fields[3].trim();
+
+                    LocalDateTime bidTime;
+                    try {
+                        bidTime = LocalDateTime.parse(timeStr, fmt1);
+                    } catch (Exception ex) {
+                        bidTime = LocalDateTime.parse(timeStr, fmt2);
+                    }
+
+                    long epochSec = bidTime.atZone(java.time.ZoneId.systemDefault())
+                            .toEpochSecond();
+
+                    bidPairs.add(new double[]{epochSec, amount});
+
+                } catch (Exception ex) {
+                    System.out.println("[Chart] Không parse được bid entry: " + parts[i]);
+                }
+            }
+
+            if (bidPairs.isEmpty()) return;
+
+            // ── Step 2: sort oldest → newest so X-axis is always positive ─
+            bidPairs.sort((a, b) -> Double.compare(a[0], b[0]));
+
+            // ── Step 3: origin = earliest bid → elapsed is always ≥ 0 ────
+            chartEpochOrigin = (long) bidPairs.get(0)[0];
+
+            for (double[] pair : bidPairs) {
+                long elapsed = (long) pair[0] - chartEpochOrigin;
+                double amount = pair[1];
+                bidSeries.getData().add(new XYChart.Data<>(elapsed, amount));
+            }
+        });
     }
 }
