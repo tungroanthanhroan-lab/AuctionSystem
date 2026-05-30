@@ -1,25 +1,30 @@
 package org.example.dao;
 
 import org.example.model.Auction;
+import org.example.model.Bidder;
+import org.example.model.Item;
 import org.example.util.DatabaseConnection;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import org.example.model.Item;
 
 /**
- * AuctionDAO — xử lý tất cả tương tác DB liên quan đến bảng auctions.
+ * AuctionDAO — handles all DB interactions for the auctions table.
  *
- * HOLD BALANCE: Các phương thức mới placeBidWithHold() và getWinnerInfo()
- * xử lý việc đóng băng tiền khi bid và lấy thông tin winner khi phiên kết thúc.
+ * MERGE NOTES:
+ *  - getAllOpenAuctions() now does a JOIN with items to populate Item data on each Auction.
+ *    The master version already had this; the rebuild simplified it away (since rebuild had
+ *    no UI needing item titles). We keep the JOIN so that VIEW_ITEMS returns proper titles
+ *    without an extra round-trip.
+ *  - placeBidWithHold(), getWinnerInfo(), createAuctionWithNewItem(), getAuctionsBySellerId(),
+ *    isAuctionOwner() are all from master — they power the HOLD BALANCE feature and the full
+ *    UI command set. The rebuild did not have these.
+ *  - insertAuction() and updateBidWithOptimisticLock() are present in both branches identically.
  */
 public class AuctionDAO {
 
-    /**
-     * Tạo bảng auctions nếu chưa tồn tại.
-     * FIX BUG 13: Dùng DatabaseConnection Singleton thay vì tạo connection mới.
-     */
+    /** Create the auctions table if it does not exist. */
     public void createTable() {
         String sql = "CREATE TABLE IF NOT EXISTS auctions ("
                 + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -41,13 +46,10 @@ public class AuctionDAO {
         }
     }
 
-    /**
-     * Mở một phiên đấu giá mới (Dành cho Admin/Seller).
-     * FIX BUG 13: Dùng DatabaseConnection Singleton.
-     */
+    /** Open a new auction session (for Admin/Seller). */
     public boolean startAuction(int itemId, String endTime) {
         String sql = "INSERT INTO auctions(item_id, start_time, end_time, status, version) "
-                   + "VALUES(?, datetime('now'), ?, 'OPEN', 0)";
+                + "VALUES(?, datetime('now'), ?, 'OPEN', 0)";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, itemId);
@@ -60,15 +62,20 @@ public class AuctionDAO {
     }
 
     /**
-     * FIX BUG 1: Thêm phương thức này — AuctionService.loadActiveAuctionsFromDB() gọi nó.
-     * Lấy tất cả phiên đấu giá đang OPEN hoặc RUNNING từ DB.
+     * Load all OPEN or RUNNING auctions from DB, including their Item data (via JOIN).
+     *
+     * MERGE: Master had this JOIN. Rebuild dropped it. We keep the JOIN because
+     * the UI needs item titles in VIEW_ITEMS without an extra DAO call.
+     * The Auction DB-constructor (int id, int itemId, String, String, String) is used,
+     * then Item is set separately via auction.setItem(item).
      */
     public List<Auction> getAllOpenAuctions() {
         List<Auction> list = new ArrayList<>();
-        String sql = "SELECT a.*, i.title, i.description, i.starting_price, i.current_price, i.end_time, i.seller_id, i.status AS item_status " +
-                "FROM auctions a " +
-                "JOIN items i ON a.item_id = i.id " +
-                "WHERE a.status = 'OPEN' OR a.status = 'RUNNING'";
+        String sql = "SELECT a.*, i.title, i.description, i.starting_price, i.current_price, "
+                + "i.end_time AS item_end_time, i.seller_id, i.status AS item_status "
+                + "FROM auctions a "
+                + "JOIN items i ON a.item_id = i.id "
+                + "WHERE a.status = 'OPEN' OR a.status = 'RUNNING'";
         Connection conn = DatabaseConnection.getConnection();
         try (Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
@@ -87,7 +94,7 @@ public class AuctionDAO {
                         rs.getString("description"),
                         rs.getDouble("starting_price"),
                         rs.getDouble("current_price"),
-                        rs.getString("end_time"),
+                        rs.getString("item_end_time"),
                         rs.getInt("seller_id"),
                         rs.getString("item_status")
                 );
@@ -96,10 +103,9 @@ public class AuctionDAO {
                 auction.setCurrentHighestBid(rs.getDouble("current_highest_bid"));
                 auction.setVersion(rs.getInt("version"));
 
-                // Khôi phục currentLeader từ DB nếu có (dùng Bidder chỉ có username)
                 String leaderName = rs.getString("current_leader");
                 if (leaderName != null && !leaderName.isEmpty()) {
-                    auction.setCurrentLeader(new org.example.model.Bidder(leaderName));
+                    auction.setCurrentLeader(new Bidder(leaderName));
                 }
 
                 list.add(auction);
@@ -112,18 +118,14 @@ public class AuctionDAO {
     }
 
     /**
-     * FIX BUG 1: Thêm phương thức này — AuctionService.placeBid() gọi nó.
-     * Cập nhật giá đấu theo Optimistic Locking: chỉ thành công nếu version khớp.
-     *
-     * SQL: UPDATE auctions SET current_highest_bid=?, current_leader=?, version=version+1
-     *      WHERE id=? AND version=?
-     * Nếu version đã bị người khác tăng trước → rowsAffected = 0 → trả về false.
+     * Update bid using Optimistic Locking — succeeds only if version matches.
+     * Returns false (0 rows affected) if another thread already incremented the version.
      */
     public boolean updateBidWithOptimisticLock(String auctionId, String bidderName,
                                                double amount, int expectedVersion) {
         String sql = "UPDATE auctions "
-                   + "SET current_highest_bid = ?, current_leader = ?, version = version + 1 "
-                   + "WHERE id = ? AND version = ?";
+                + "SET current_highest_bid = ?, current_leader = ?, version = version + 1 "
+                + "WHERE id = ? AND version = ?";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setDouble(1, amount);
@@ -131,7 +133,7 @@ public class AuctionDAO {
             pstmt.setString(3, auctionId);
             pstmt.setInt(4, expectedVersion);
             int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0; // 0 nghĩa là version đã bị thay đổi trước đó (conflict)
+            return rowsAffected > 0;
         } catch (SQLException e) {
             System.err.println("[DB] Lỗi updateBidWithOptimisticLock: " + e.getMessage());
             e.printStackTrace();
@@ -140,32 +142,23 @@ public class AuctionDAO {
     }
 
     /**
-     * HOLD BALANCE: Đặt giá kết hợp đóng băng tiền trong 1 DB transaction duy nhất.
+     * HOLD BALANCE — Atomically: update auction (Optimistic Lock) + hold new bidder's money
+     * + release previous leader's held money. All in one DB transaction.
      *
-     * Flow trong transaction:
-     *   1. UPDATE auctions (Optimistic Locking) — kiểm tra version khớp rồi tăng lên
-     *   2. Hold tiền của bidder mới (tăng held_balance)
-     *   3. Release tiền của bidder cũ nếu có (giảm held_balance)
-     * Nếu bất kỳ bước nào fail → rollback toàn bộ → dữ liệu nhất quán.
-     *
-     * @param auctionId      id phiên đấu giá
-     * @param newBidder      username người đặt giá mới
-     * @param newAmount      số tiền bid mới
-     * @param expectedVersion version hiện tại trên RAM (Optimistic Locking)
-     * @param prevLeader     username người dẫn đầu cũ (null nếu phiên chưa có ai bid)
-     * @param prevAmount     số tiền bid của người cũ (0 nếu chưa có)
-     * @return true nếu toàn bộ transaction thành công
+     * Steps:
+     *  1. UPDATE auctions WHERE version matches (Optimistic Lock)
+     *  2. Increase held_balance for newBidder (if available_balance >= amount)
+     *  3. Decrease held_balance for prevLeader (release their earlier hold)
+     * If any step fails → full rollback.
      */
     public boolean placeBidWithHold(String auctionId,
                                     String newBidder, double newAmount, int expectedVersion,
                                     String prevLeader, double prevAmount) {
         Connection conn = DatabaseConnection.getConnection();
         try {
-            // Bắt đầu transaction — toàn bộ hold/release/update phải là atomic
             conn.setAutoCommit(false);
 
-            // Bước 1: Cập nhật auction (Optimistic Locking)
-            // Nếu version đã bị người khác tăng trước → rowsAffected = 0 → rollback
+            // Step 1: Update auction with Optimistic Locking
             String updateAuctionSql = "UPDATE auctions "
                     + "SET current_highest_bid = ?, current_leader = ?, version = version + 1, status = 'RUNNING' "
                     + "WHERE id = ? AND version = ?";
@@ -176,7 +169,6 @@ public class AuctionDAO {
                 pstmt.setInt(4, expectedVersion);
                 int rows = pstmt.executeUpdate();
                 if (rows == 0) {
-                    // Conflict: version đã bị thay đổi bởi bid khác → thất bại
                     conn.rollback();
                     System.out.println("[DB] placeBidWithHold: Optimistic lock conflict — auction=" + auctionId
                             + " expectedVersion=" + expectedVersion);
@@ -184,8 +176,7 @@ public class AuctionDAO {
                 }
             }
 
-            // Bước 2: Hold tiền của bidder mới
-            // Điều kiện: (balance - held_balance) >= newAmount (kiểm tra tại DB)
+            // Step 2: Hold new bidder's money (only if available balance >= amount)
             String holdSql = "UPDATE users "
                     + "SET held_balance = held_balance + ? "
                     + "WHERE username = ? AND (balance - held_balance) >= ?";
@@ -195,16 +186,14 @@ public class AuctionDAO {
                 pstmt.setDouble(3, newAmount);
                 int rows = pstmt.executeUpdate();
                 if (rows == 0) {
-                    // Không đủ tiền → rollback để giữ nhất quán
                     conn.rollback();
                     System.out.println("[DB] placeBidWithHold: " + newBidder
-                            + " không đủ available_balance cho amount=" + newAmount);
+                            + " insufficient available_balance for amount=" + newAmount);
                     return false;
                 }
             }
 
-            // Bước 3: Release tiền của bidder cũ (nếu có và không phải người đang bid mới)
-            // Trường hợp không có leader cũ: bỏ qua bước này
+            // Step 3: Release previous leader's held money (if applicable)
             if (prevLeader != null && !prevLeader.isEmpty() && !prevLeader.equals(newBidder) && prevAmount > 0) {
                 String releaseSql = "UPDATE users "
                         + "SET held_balance = MAX(0, held_balance - ?) "
@@ -213,42 +202,37 @@ public class AuctionDAO {
                     pstmt.setDouble(1, prevAmount);
                     pstmt.setString(2, prevLeader);
                     pstmt.executeUpdate();
-                    System.out.println("[DB] placeBidWithHold: Release " + prevAmount
-                            + " cho " + prevLeader + " (bị vượt giá)");
+                    System.out.println("[DB] placeBidWithHold: Released " + prevAmount
+                            + " for " + prevLeader + " (outbid)");
                 }
             }
 
-            // Commit toàn bộ transaction
             conn.commit();
-            System.out.println("[DB] placeBidWithHold: Thành công — auction=" + auctionId
+            System.out.println("[DB] placeBidWithHold: Success — auction=" + auctionId
                     + " | bidder=" + newBidder + " | amount=" + newAmount);
             return true;
 
         } catch (SQLException e) {
             try {
-                conn.rollback(); // Đảm bảo rollback nếu có lỗi bất ngờ
+                conn.rollback();
             } catch (SQLException rollbackEx) {
-                System.err.println("[DB] Lỗi rollback: " + rollbackEx.getMessage());
+                System.err.println("[DB] Rollback error: " + rollbackEx.getMessage());
             }
             System.err.println("[DB] Lỗi placeBidWithHold: " + e.getMessage());
             e.printStackTrace();
             return false;
         } finally {
             try {
-                conn.setAutoCommit(true); // Khôi phục auto-commit sau transaction
+                conn.setAutoCommit(true);
             } catch (SQLException e) {
-                System.err.println("[DB] Lỗi khôi phục autoCommit: " + e.getMessage());
+                System.err.println("[DB] Error restoring autoCommit: " + e.getMessage());
             }
         }
     }
 
     /**
-     * HOLD BALANCE: Lấy thông tin winner và seller của một phiên đấu giá.
-     * Dùng khi đóng phiên để biết cần trừ tiền ai và cộng tiền cho ai.
-     *
-     * @param auctionId id phiên
-     * @return mảng [winnerUsername, winnerBidAmount, sellerUsername]
-     *         hoặc null nếu phiên không có ai đặt giá (current_leader = null)
+     * HOLD BALANCE — Get winner and seller info when closing a session.
+     * Returns [winnerUsername, bidAmount, sellerUsername] or null if no bids were placed.
      */
     public String[] getWinnerInfo(String auctionId) {
         String sql = "SELECT a.current_leader, a.current_highest_bid, u.username AS seller_username "
@@ -263,12 +247,12 @@ public class AuctionDAO {
                 if (rs.next()) {
                     String leader = rs.getString("current_leader");
                     if (leader == null || leader.isEmpty()) {
-                        return null; // Không có ai đặt giá → không có winner
+                        return null;
                     }
                     return new String[]{
-                        leader,
-                        String.valueOf(rs.getDouble("current_highest_bid")),
-                        rs.getString("seller_username")
+                            leader,
+                            String.valueOf(rs.getDouble("current_highest_bid")),
+                            rs.getString("seller_username")
                     };
                 }
             }
@@ -280,14 +264,8 @@ public class AuctionDAO {
     }
 
     /**
-     * Tạo item mới rồi tạo phiên đấu giá cho item đó.
-     *
-     * Flow:
-     * 1. Insert vào bảng items.
-     * 2. Lấy itemId vừa tạo.
-     * 3. Insert vào bảng auctions.
-     * 4. Lấy auctionId vừa tạo.
-     * 5. Trả về Auction để AuctionService đưa vào activeAuctions.
+     * Create item and auction in one DB transaction.
+     * Returns the new Auction (with generated ID set) or null on failure.
      */
     public Auction createAuctionWithNewItem(String title,
                                             String description,
@@ -306,11 +284,8 @@ public class AuctionDAO {
             conn.setAutoCommit(false);
 
             int itemId;
-
             try (PreparedStatement itemStmt = conn.prepareStatement(
-                    insertItemSql,
-                    Statement.RETURN_GENERATED_KEYS
-            )) {
+                    insertItemSql, Statement.RETURN_GENERATED_KEYS)) {
                 itemStmt.setString(1, title);
                 itemStmt.setString(2, description);
                 itemStmt.setDouble(3, startingPrice);
@@ -318,102 +293,58 @@ public class AuctionDAO {
                 itemStmt.setString(5, endTime);
                 itemStmt.setInt(6, sellerId);
 
-                int itemRows = itemStmt.executeUpdate();
-
-                if (itemRows == 0) {
+                if (itemStmt.executeUpdate() == 0) {
                     conn.rollback();
                     return null;
                 }
-
-                try (ResultSet generatedKeys = itemStmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        itemId = generatedKeys.getInt(1);
-                    } else {
-                        conn.rollback();
-                        return null;
-                    }
+                try (ResultSet keys = itemStmt.getGeneratedKeys()) {
+                    if (keys.next()) itemId = keys.getInt(1);
+                    else { conn.rollback(); return null; }
                 }
             }
 
             int auctionId;
-
             try (PreparedStatement auctionStmt = conn.prepareStatement(
-                    insertAuctionSql,
-                    Statement.RETURN_GENERATED_KEYS
-            )) {
+                    insertAuctionSql, Statement.RETURN_GENERATED_KEYS)) {
                 auctionStmt.setInt(1, itemId);
                 auctionStmt.setString(2, endTime);
                 auctionStmt.setDouble(3, startingPrice);
 
-                int auctionRows = auctionStmt.executeUpdate();
-
-                if (auctionRows == 0) {
+                if (auctionStmt.executeUpdate() == 0) {
                     conn.rollback();
                     return null;
                 }
-
-                try (ResultSet generatedKeys = auctionStmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        auctionId = generatedKeys.getInt(1);
-                    } else {
-                        conn.rollback();
-                        return null;
-                    }
+                try (ResultSet keys = auctionStmt.getGeneratedKeys()) {
+                    if (keys.next()) auctionId = keys.getInt(1);
+                    else { conn.rollback(); return null; }
                 }
             }
 
             conn.commit();
 
             Auction auction = new Auction(
-                    auctionId,
-                    itemId,
-                    "",
-                    endTime,
-                    "OPEN"
+                    String.valueOf(auctionId), null, null,
+                    org.example.model.AuctionStatus.OPEN, startingPrice,
+                    null, null, null
             );
 
-            /*
-             * Set item vào auction để VIEW_ITEMS lấy được title ngay,
-             * không phải chờ restart server/load lại từ DB.
-             */
-            Item item = new Item(
-                    itemId,
-                    title,
-                    description,
-                    startingPrice,
-                    startingPrice,
-                    endTime,
-                    sellerId,
-                    "OPEN"
-            );
-
+            Item item = new Item(itemId, title, description, startingPrice, startingPrice,
+                    endTime, sellerId, "OPEN");
             auction.setItem(item);
-            auction.setCurrentHighestBid(startingPrice);
             auction.setVersion(0);
 
             return auction;
 
         } catch (SQLException e) {
-            try {
-                conn.rollback();
-            } catch (SQLException rollbackException) {
-                rollbackException.printStackTrace();
-            }
-
+            try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
             e.printStackTrace();
             return null;
-
         } finally {
-            try {
-                conn.setAutoCommit(true);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+            try { conn.setAutoCommit(true); } catch (SQLException e) { e.printStackTrace(); }
         }
     }
-    /**
-     * Đóng phiên đấu giá trong DB.
-     */
+
+    /** Close auction in DB (set status = FINISHED). */
     public boolean closeAuction(String auctionId) {
         String sql = "UPDATE auctions SET status = 'FINISHED' WHERE id = ?";
         Connection conn = DatabaseConnection.getConnection();
@@ -425,107 +356,70 @@ public class AuctionDAO {
             return false;
         }
     }
-    /**
-     * Kiểm tra user hiện tại có phải là người tạo/sở hữu phiên đấu giá không.
-     *
-     * Flow:
-     * auctions.item_id -> items.id -> items.seller_id
-     */
+
+    /** Check if a given user is the seller/owner of an auction session. */
     public boolean isAuctionOwner(String auctionId, int userId) {
-        String sql = "SELECT i.seller_id " +
-                "FROM auctions a " +
-                "JOIN items i ON a.item_id = i.id " +
-                "WHERE a.id = ?";
-
+        String sql = "SELECT i.seller_id FROM auctions a "
+                + "JOIN items i ON a.item_id = i.id WHERE a.id = ?";
         Connection conn = DatabaseConnection.getConnection();
-
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, auctionId);
-
             try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    int sellerId = rs.getInt("seller_id");
-                    return sellerId == userId;
-                }
+                if (rs.next()) return rs.getInt("seller_id") == userId;
             }
-
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi kiểm tra chủ phiên đấu giá: " + e.getMessage());
+            System.err.println("[DB] Lỗi isAuctionOwner: " + e.getMessage());
             e.printStackTrace();
         }
-
         return false;
     }
-    /**
-     * Lấy danh sách phiên đấu giá do một user tạo.
-     *
-     * Flow:
-     * users.id -> items.seller_id -> auctions.item_id
-     */
+
+    /** Get all auctions created by a specific seller (for MY_AUCTIONS command). */
     public List<Auction> getAuctionsBySellerId(int sellerId) {
         List<Auction> list = new ArrayList<>();
-
-        String sql = "SELECT a.*, i.title, i.description, i.starting_price, i.current_price, " +
-                "i.end_time, i.seller_id, i.status AS item_status " +
-                "FROM auctions a " +
-                "JOIN items i ON a.item_id = i.id " +
-                "WHERE i.seller_id = ? " +
-                "ORDER BY a.id DESC";
-
+        String sql = "SELECT a.*, i.title, i.description, i.starting_price, i.current_price, "
+                + "i.end_time AS item_end_time, i.seller_id, i.status AS item_status "
+                + "FROM auctions a "
+                + "JOIN items i ON a.item_id = i.id "
+                + "WHERE i.seller_id = ? ORDER BY a.id DESC";
         Connection conn = DatabaseConnection.getConnection();
-
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, sellerId);
-
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     Auction auction = new Auction(
-                            rs.getInt("id"),
-                            rs.getInt("item_id"),
-                            rs.getString("start_time"),
-                            rs.getString("end_time"),
+                            rs.getInt("id"), rs.getInt("item_id"),
+                            rs.getString("start_time"), rs.getString("end_time"),
                             rs.getString("status")
                     );
-
                     Item item = new Item(
-                            rs.getInt("item_id"),
-                            rs.getString("title"),
-                            rs.getString("description"),
-                            rs.getDouble("starting_price"),
-                            rs.getDouble("current_price"),
-                            rs.getString("end_time"),
-                            rs.getInt("seller_id"),
-                            rs.getString("item_status")
+                            rs.getInt("item_id"), rs.getString("title"),
+                            rs.getString("description"), rs.getDouble("starting_price"),
+                            rs.getDouble("current_price"), rs.getString("item_end_time"),
+                            rs.getInt("seller_id"), rs.getString("item_status")
                     );
-
                     auction.setItem(item);
                     auction.setCurrentHighestBid(rs.getDouble("current_highest_bid"));
                     auction.setVersion(rs.getInt("version"));
-
                     list.add(auction);
                 }
             }
-
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi lấy danh sách phiên của user: " + e.getMessage());
+            System.err.println("[DB] Lỗi getAuctionsBySellerId: " + e.getMessage());
             e.printStackTrace();
         }
-
         return list;
     }
+
     /**
-     * Tạo phiên đấu giá mới — INSERT vào DB và set generated ID trở lại Auction object.
-     * Dùng RETURN_GENERATED_KEYS để lấy id tự tăng của SQLite.
-     *
-     * @param auction object đã có item_id, startTime, endTime, startingPrice
-     * @return true nếu INSERT thành công, false nếu lỗi
+     * Insert a new auction row and set the generated ID back onto the Auction object.
+     * Used by AuctionService.createAuction() (itemId-based creation flow).
      */
     public boolean insertAuction(Auction auction) {
         String sql = "INSERT INTO auctions(item_id, start_time, end_time, status, current_highest_bid, version) "
-                   + "VALUES(?, ?, ?, 'OPEN', ?, 0)";
+                + "VALUES(?, ?, ?, 'OPEN', ?, 0)";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            // item_id: lấy từ auction.getItem() nếu có, fallback về 0
             int itemId = (auction.getItem() != null) ? auction.getItem().getId() : 0;
             pstmt.setInt(1, itemId);
             pstmt.setString(2, auction.getStartTime() != null
@@ -536,7 +430,6 @@ public class AuctionDAO {
 
             int rows = pstmt.executeUpdate();
             if (rows > 0) {
-                // Lấy id tự tăng SQLite trả về và gán lại vào object RAM
                 try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
                     if (generatedKeys.next()) {
                         String generatedId = String.valueOf(generatedKeys.getLong(1));
@@ -554,10 +447,7 @@ public class AuctionDAO {
         }
     }
 
-    /**
-     * Lấy danh sách các phiên đấu giá đang MỞ (tên cũ giữ lại để tương thích).
-     * FIX BUG 13: Dùng DatabaseConnection Singleton.
-     */
+    /** Alias for getAllOpenAuctions() — kept for backward compatibility. */
     public List<Auction> getActiveAuctions() {
         return getAllOpenAuctions();
     }

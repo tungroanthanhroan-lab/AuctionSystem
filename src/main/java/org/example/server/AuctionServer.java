@@ -16,21 +16,21 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Entry point của Auction Server.
+ * Entry point for the Auction Server.
  *
- * FIX BUG 4: Khởi tạo đầy đủ dependencies và truyền vào ClientHandler (4 tham số).
- * FIX BUG 10: Dùng ExecutorService (CachedThreadPool) thay vì new Thread() thủ công.
+ * MERGE NOTE: Based on rebuild's clean, well-commented version.
+ * Key change: AuctionService now receives userDAO as a third argument
+ * (required by the merged AuctionService for HOLD BALANCE feature).
  */
 public class AuctionServer {
 
-    private static final int PORT = 8080;
-    // Giới hạn tối đa 100 client đồng thời để bảo vệ tài nguyên
+    private static final int PORT        = 8080;
     private static final int MAX_THREADS = 100;
 
     public static void main(String[] args) {
         System.out.println("=== Khởi động Auction Server ===");
 
-        // ── Khởi tạo DB schema ──
+        // 1. Init DB schema in correct FK order
         UserDAO userDAO = new UserDAO();
         userDAO.createTableIfNotExists();
 
@@ -43,45 +43,39 @@ public class AuctionServer {
         BidDAO bidDAO = new BidDAO();
         bidDAO.createTable();
 
-        // ── Khởi tạo Services ──
-        AuctionNotifier notifier = new AuctionNotifier();
-        UserService userService = new UserService(userDAO);
-        // HOLD BALANCE: Truyền thêm userDAO vào AuctionService để xử lý hold/release/deduct tiền
+        // 2. Init services and notifier
+        AuctionNotifier notifier   = new AuctionNotifier();
+        UserService     userService = new UserService(userDAO);
+
+        // MERGE: pass userDAO for HOLD BALANCE support (rebuild only passed 2 args here)
         AuctionService auctionService = new AuctionService(auctionDAO, notifier, userDAO);
 
-        // FIX BUG 10: ThreadPool có giới hạn, không tạo thread vô hạn
+        // 3. Thread pool with limit to protect against DoS
         ExecutorService clientPool = Executors.newFixedThreadPool(MAX_THREADS);
 
-        // Shutdown hook: dọn dẹp khi server bị tắt
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\n[Server] Đang tắt server...");
+            System.out.println("\n[Server] Đang tắt server an toàn...");
             clientPool.shutdown();
             notifier.shutdown();
-            System.out.println("[Server] Server đã tắt sạch.");
+            System.out.println("[Server] Tài nguyên và Thread Pool đã được dọn dẹp.");
         }));
 
+        // 4. Accept connections
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("[Server] Đang lắng nghe trên cổng " + PORT + "...");
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("[Server] Client mới kết nối: " + clientSocket.getInetAddress());
+                System.out.println("[Server] Client mới: " + clientSocket.getInetAddress());
 
-                // FIX BUG 7: Truyền đủ 5 tham số vào ClientHandler constructor
                 ClientHandler handler = new ClientHandler(
-                        clientSocket,
-                        userService,
-                        auctionService,
-                        notifier,
-                        bidDAO
+                        clientSocket, userService, auctionService, notifier, bidDAO
                 );
-
-                // FIX BUG 10: Submit vào pool thay vì new Thread().start()
                 clientPool.submit(handler);
             }
 
         } catch (IOException e) {
-            System.err.println("[Server] Lỗi: Cổng " + PORT + " có thể đã bị chiếm dụng!");
+            System.err.println("[Server] Lỗi nghiêm trọng: Cổng " + PORT + " không khả dụng!");
             e.printStackTrace();
         }
     }

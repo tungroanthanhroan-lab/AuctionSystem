@@ -10,12 +10,15 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * BidDAO — handles all DB interactions for the bids table.
+ *
+ * MERGE NOTE: Master version kept. Rebuild dropped getBidHistory() because the rebuild
+ * branch had no UI to display it. The UI's BiddingController (from master) calls
+ * GET_BID_HISTORY which requires this method.
+ */
 public class BidDAO {
 
-    /**
-     * Tạo bảng bids nếu chưa tồn tại.
-     * FIX BUG 13: Dùng DatabaseConnection Singleton thay vì tạo connection mới.
-     */
     public void createTable() {
         String sql = "CREATE TABLE IF NOT EXISTS bids ("
                 + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -35,13 +38,9 @@ public class BidDAO {
         }
     }
 
-    /**
-     * Ghi một lượt đặt giá vào DB.
-     * FIX BUG 13: Dùng DatabaseConnection Singleton.
-     */
     public boolean placeBid(int auctionId, int userId, double amount) {
         String sql = "INSERT INTO bids(auction_id, user_id, bid_amount, bid_time) "
-                   + "VALUES(?, ?, ?, datetime('now'))";
+                + "VALUES(?, ?, ?, datetime('now'))";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, auctionId);
@@ -54,11 +53,6 @@ public class BidDAO {
         }
     }
 
-    /**
-     * Lấy giá cao nhất hiện tại của một phiên.
-     * FIX BUG 13: Dùng DatabaseConnection Singleton.
-     * FIX: Dùng try-with-resources để đóng ResultSet đúng cách.
-     */
     public double getMaxBid(int auctionId) {
         String sql = "SELECT MAX(bid_amount) FROM bids WHERE auction_id = ?";
         Connection conn = DatabaseConnection.getConnection();
@@ -75,29 +69,31 @@ public class BidDAO {
     }
 
     /**
-     * Lấy toàn bộ lịch sử đặt giá của một phiên đấu giá, sắp xếp mới nhất trước.
-     * JOIN với bảng users để lấy username.
+     * Get full bid history for an auction, most recent first.
+     * Joins with users to include username.
      *
-     * @param auctionId id phiên cần truy vấn
-     * @return List các mảng String gồm [userId, username, bidAmount, bidTime]
+     * MERGE NOTE: This method only exists in master — required by the UI's
+     * GET_BID_HISTORY command in ClientHandler and BiddingController.
+     *
+     * @return List of String[] rows: [userId, username, bidAmount, bidTime]
      */
     public List<String[]> getBidHistory(int auctionId) {
         List<String[]> result = new ArrayList<>();
         String sql = "SELECT b.user_id, u.username, b.bid_amount, b.bid_time "
-                   + "FROM bids b "
-                   + "LEFT JOIN users u ON b.user_id = u.id "
-                   + "WHERE b.auction_id = ? "
-                   + "ORDER BY b.bid_time DESC";
+                + "FROM bids b "
+                + "LEFT JOIN users u ON b.user_id = u.id "
+                + "WHERE b.auction_id = ? "
+                + "ORDER BY b.bid_time DESC";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, auctionId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     String[] row = {
-                        String.valueOf(rs.getInt("user_id")),
-                        rs.getString("username") != null ? rs.getString("username") : "unknown",
-                        String.valueOf(rs.getDouble("bid_amount")),
-                        rs.getString("bid_time") != null ? rs.getString("bid_time") : ""
+                            String.valueOf(rs.getInt("user_id")),
+                            rs.getString("username") != null ? rs.getString("username") : "unknown",
+                            String.valueOf(rs.getDouble("bid_amount")),
+                            rs.getString("bid_time") != null ? rs.getString("bid_time") : ""
                     };
                     result.add(row);
                 }

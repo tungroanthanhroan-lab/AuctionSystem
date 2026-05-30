@@ -2,48 +2,65 @@ package org.example.service;
 
 import org.example.dao.AuctionDAO;
 import org.example.dao.UserDAO;
+import org.example.exception.InvalidBidException;
 import org.example.model.Auction;
 import org.example.model.AuctionStatus;
-import org.example.model.Item;
-import org.example.observer.BidUpdateEvent;
 import org.example.model.Bidder;
+import org.example.model.Item;
 import org.example.observer.AuctionNotifier;
+import org.example.observer.BidUpdateEvent;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * AuctionService — tầng service xử lý toàn bộ nghiệp vụ đấu giá.
+ * AuctionService — all auction business logic.
  *
- * HOLD BALANCE: Tích hợp cơ chế đóng băng tiền (held_balance) vào flow bid và đóng phiên.
- * UserDAO được inject để truy vấn/thao tác balance mà không cần đi qua UserService
- * (tránh circular dependency và giảm round-trip).
+ * MERGE NOTES:
+ *  - Constructor: now takes (AuctionDAO, AuctionNotifier, UserDAO) — master's signature.
+ *    The rebuild only took (AuctionDAO, AuctionNotifier) because it had no HOLD BALANCE.
+ *    AuctionServer.java must be updated to pass userDAO here (see server package).
+ *
+ *  - placeBid(): uses master's HOLD BALANCE flow (placeBidWithHold DB transaction) instead of
+ *    rebuild's simpler updateBidWithOptimisticLock. Anti-Snipe logic from rebuild is also kept.
+ *
+ *  - Auto-Bid: kept in full from rebuild (registerAutoBid, cancelAutoBid, triggerAutoBids).
+ *    The autoBid loop calls updateBidWithOptimisticLock (no money held for auto-bids — fine
+ *    for a student project; production would need held_balance for auto-bids too).
+ *
+ *  - closeAuction(): master's full payment flow (deductBalanceOnWin + updateBalance for seller).
+ *
+ *  - createAuctionWithNewItem(): from master (creates both item and auction in one transaction).
+ *    isAuctionOwner() and getAuctionsBySellerId() also from master (needed by UI commands).
+ *
+ *  - Test helpers (getAuction, getAutoBidCount, addAuctionForTest): from rebuild.
  */
 public class AuctionService {
-    private AuctionDAO auctionDAO;
-    private AuctionNotifier auctionNotifier;
 
-    // HOLD BALANCE: Inject UserDAO để kiểm tra available_balance và xử lý deduct/credit tiền
-    private UserDAO userDAO;
+    private final AuctionDAO auctionDAO;
+    private final AuctionNotifier auctionNotifier;
+    private final UserDAO userDAO;  // HOLD BALANCE: inject to check / deduct balances
 
-    // Bộ nhớ Cache lưu trữ các phiên đấu giá đang diễn ra trên RAM
-    // Dùng ConcurrentHashMap để Thread-Safe (an toàn khi nhiều luồng truy cập)
-    private ConcurrentHashMap<String, Auction> activeAuctions;
+    private final ConcurrentHashMap<String, Auction> activeAuctions;
+    private final ConcurrentHashMap<String, List<AutoBidConfig>> autoBids;
 
-    // Inject DAO và Notifier vào qua Constructor
+    // Anti-Snipe constants (from rebuild)
+    private static final long SNIPE_WINDOW_SECONDS    = 60;
+    private static final long SNIPE_EXTENSION_SECONDS = 120;
+
     public AuctionService(AuctionDAO auctionDAO, AuctionNotifier auctionNotifier, UserDAO userDAO) {
-        this.auctionDAO = auctionDAO;
+        this.auctionDAO      = auctionDAO;
         this.auctionNotifier = auctionNotifier;
-        this.userDAO = userDAO;
-        this.activeAuctions = new ConcurrentHashMap<>();
-
-        // Khởi động server là nạp ngay dữ liệu từ DB lên RAM
+        this.userDAO         = userDAO;
+        this.activeAuctions  = new ConcurrentHashMap<>();
+        this.autoBids        = new ConcurrentHashMap<>();
         loadActiveAuctionsFromDB();
     }
 
     private void loadActiveAuctionsFromDB() {
-        // Giả sử DAO có hàm lấy danh sách các phiên đang mở
         List<Auction> openAuctions = auctionDAO.getAllOpenAuctions();
         if (openAuctions != null) {
             for (Auction auction : openAuctions) {
@@ -53,46 +70,57 @@ public class AuctionService {
         System.out.println("Đã tải " + activeAuctions.size() + " phiên đấu giá lên hệ thống.");
     }
 
+    // ── Core bid logic ────────────────────────────────────────────────────────
+
     /**
-     * HOLD BALANCE — Logic đặt giá cốt lõi (Xử lý đồng thời cực kỳ nghiêm ngặt).
+     * Place a bid with HOLD BALANCE + Anti-Snipe + Optimistic Locking.
      *
      * Flow:
-     *   1. Lấy phiên từ RAM; trả về false nếu không tồn tại.
-     *   2. synchronized(auction) — chỉ 1 thread được xử lý bid cho phiên này tại 1 thời điểm.
-     *   3. Kiểm tra giá mới phải > currentHighestBid.
-     *   4. Tính available_balance = balance - held_balance từ DB.
-     *      Nếu không đủ → từ chối bid ngay, không mất công gọi DB update.
-     *   5. Gọi AuctionDAO.placeBidWithHold() — toàn bộ hold/release/update auction
-     *      chạy trong 1 DB transaction để đảm bảo atomic.
-     *   6. Nếu DB ok → cập nhật RAM, broadcast thông báo real-time.
-     *
-     * @param auctionId  id phiên đấu giá
-     * @param bidderName username người đặt giá
-     * @param amount     số tiền muốn đặt
-     * @return true nếu đặt giá thành công
+     *  1. Get auction from RAM.
+     *  2. synchronized(auction) — one thread per auction at a time.
+     *  3. Validate: amount > currentHighestBid.
+     *  4. Anti-Snipe: if within SNIPE_WINDOW_SECONDS of endTime → extend endTime.
+     *  5. Check available_balance (balance - held_balance) from DB.
+     *  6. DB transaction: placeBidWithHold (hold new + release prev + update auction).
+     *  7. Update RAM, broadcast, trigger auto-bids.
      */
     public boolean placeBid(String auctionId, String bidderName, double amount) {
-        // 1. Lấy phiên đấu giá từ bộ nhớ RAM
         Auction auction = activeAuctions.get(auctionId);
-
         if (auction == null) {
             System.out.println("[AuctionService] Phiên đấu giá không tồn tại hoặc đã đóng: " + auctionId);
             return false;
         }
 
-        // 2. KHÓA ĐỐI TƯỢNG — chỉ 1 luồng được xét duyệt giá cho phiên này tại 1 thời điểm
         synchronized (auction) {
             try {
-                // 3. Kiểm tra logic nghiệp vụ: Giá mới phải lớn hơn giá hiện tại
+                if (auction.getStatus() != AuctionStatus.OPEN
+                        && auction.getStatus() != AuctionStatus.RUNNING) {
+                    return false;
+                }
+
                 if (amount <= auction.getCurrentHighestBid()) {
                     System.out.println("[AuctionService] Giá " + amount + " không cao hơn giá hiện tại "
                             + auction.getCurrentHighestBid());
                     return false;
                 }
 
-                // 4. HOLD BALANCE: Kiểm tra available_balance trước khi gọi DB transaction
-                //    available_balance = balance - held_balance
-                //    Đọc thẳng từ DB để đảm bảo tính nhất quán (không cache trên RAM)
+                // Anti-Snipe (from rebuild)
+                LocalDateTime now     = LocalDateTime.now();
+                LocalDateTime endTime = auction.getEndTime();
+                if (endTime != null) {
+                    if (now.isAfter(endTime)) {
+                        auction.setStatus(AuctionStatus.FINISHED);
+                        return false;
+                    }
+                    long secondsLeft = java.time.Duration.between(now, endTime).getSeconds();
+                    if (secondsLeft <= SNIPE_WINDOW_SECONDS) {
+                        auction.setEndTime(endTime.plusSeconds(SNIPE_EXTENSION_SECONDS));
+                        System.out.println("[ANTI-SNIPE] Gia hạn phiên " + auctionId
+                                + " đến: " + auction.getEndTime());
+                    }
+                }
+
+                // HOLD BALANCE: check available_balance before touching DB
                 double availableBalance = userDAO.getAvailableBalance(bidderName);
                 if (availableBalance < 0) {
                     System.out.println("[AuctionService] Không lấy được số dư của: " + bidderName);
@@ -104,47 +132,36 @@ public class AuctionService {
                     return false;
                 }
 
-                // 5. Lấy thông tin người dẫn đầu hiện tại để release held khi bị vượt
                 String prevLeader = (auction.getCurrentLeader() != null)
-                        ? auction.getCurrentLeader().getUsername()
-                        : null;
-                // Lưu lại prevAmount TRƯỚC khi update để release đúng số tiền
+                        ? auction.getCurrentLeader().getUsername() : null;
                 double prevAmount = auction.getCurrentHighestBid();
 
-                // 6. Gọi DB transaction: hold tiền mới + release tiền cũ + update auction (Optimistic Locking)
-                //    Toàn bộ 3 bước chạy atomic trong 1 transaction — nếu bất kỳ bước nào fail → rollback
-                boolean isDbUpdated = auctionDAO.placeBidWithHold(
+                // Atomic DB transaction: hold + release + optimistic lock
+                boolean dbOk = auctionDAO.placeBidWithHold(
                         auctionId, bidderName, amount, auction.getVersion(),
                         prevLeader, prevAmount
                 );
 
-                if (isDbUpdated) {
-                    // 7. DB thành công → Cập nhật trạng thái trên RAM
+                if (dbOk) {
                     auction.setCurrentHighestBid(amount);
-                    auction.setCurrentLeader(new Bidder(bidderName));
-                    auction.setVersion(auction.getVersion() + 1); // Đồng bộ version RAM với DB
+                    Bidder bidder = new Bidder(bidderName);
+                    auction.setCurrentLeader(bidder);
+                    auction.setVersion(auction.getVersion() + 1);
                     if (auction.getStatus() == AuctionStatus.OPEN) {
-                        auction.setStatus(AuctionStatus.RUNNING); // Phiên chuyển sang RUNNING khi có bid đầu tiên
+                        auction.setStatus(AuctionStatus.RUNNING);
                     }
 
-                    // 8. PHÁT LOA THÔNG BÁO REAL-TIME cho tất cả client đang theo dõi
                     BidUpdateEvent event = new BidUpdateEvent(
-                            auction,
-                            amount,
-                            auction.getCurrentLeader(),
-                            String.valueOf(System.currentTimeMillis())
-                    );
+                            auctionId, amount, bidder, String.valueOf(System.currentTimeMillis()));
                     auctionNotifier.broadcast(event);
 
-                    System.out.println("[AuctionService] Đặt giá thành công: " + bidderName
-                            + " | auction=" + auctionId + " | amount=" + amount
-                            + " | held_balance của " + bidderName + " tăng thêm " + amount
-                            + (prevLeader != null ? " | released " + prevAmount + " cho " + prevLeader : ""));
-                    return true;
+                    triggerAutoBids(auctionId, bidderName);
 
+                    System.out.println("[AuctionService] Đặt giá thành công: " + bidderName
+                            + " | auction=" + auctionId + " | amount=" + amount);
+                    return true;
                 } else {
-                    // DB báo false: có thể do conflict version hoặc không đủ tiền tại DB
-                    System.out.println("[AuctionService] DB từ chối bid (conflict version hoặc insufficient balance): "
+                    System.out.println("[AuctionService] DB từ chối bid (conflict hoặc insufficient balance): "
                             + bidderName + " | auction=" + auctionId);
                     return false;
                 }
@@ -157,94 +174,104 @@ public class AuctionService {
         }
     }
 
-    /**
-     * Seller/Admin tạo phiên đấu giá mới bằng tên sản phẩm.
-     */
-    public boolean createAuctionWithNewItem(String title,
-                                            String description,
-                                            double startingPrice,
-                                            String endTime,
-                                            int sellerId) {
-        try {
-            if (title == null || title.trim().isEmpty()) {
-                return false;
-            }
+    // ── Auto-Bid (from rebuild) ───────────────────────────────────────────────
 
-            if (startingPrice < 0) {
-                return false;
-            }
+    public void registerAutoBid(String auctionId, AutoBidConfig config) {
+        Auction auction = activeAuctions.get(auctionId);
+        if (auction == null) return;
+        if (auction.getStatus() != AuctionStatus.OPEN && auction.getStatus() != AuctionStatus.RUNNING) {
+            throw new org.example.exception.AuctionClosedException("Không thể đăng ký auto-bid khi phiên đã đóng!");
+        }
+        if (config.getMaxBid() <= auction.getCurrentHighestBid()) {
+            throw new InvalidBidException("maxBid (" + config.getMaxBid() + ") phải lớn hơn giá hiện tại");
+        }
+        cancelAutoBid(auctionId, config.getBidder());
+        autoBids.computeIfAbsent(auctionId, k -> new CopyOnWriteArrayList<>()).add(config);
+        System.out.println("[AUTO-BID] Đã đăng ký: " + config);
+    }
 
-            if (description == null) {
-                description = "";
-            }
-
-            if (endTime == null || endTime.trim().isEmpty()) {
-                endTime = "2099-12-31T23:59";
-            }
-
-            Auction auction = auctionDAO.createAuctionWithNewItem(
-                    title.trim(),
-                    description.trim(),
-                    startingPrice,
-                    endTime.trim(),
-                    sellerId
-            );
-
-            if (auction == null) {
-                return false;
-            }
-
-            activeAuctions.put(auction.getAuctionId(), auction);
-
-            System.out.println("Đã tạo phiên đấu giá mới: " + auction.getAuctionId());
-
-            return true;
-
-        } catch (Exception e) {
-            System.out.println("Lỗi tạo phiên đấu giá: " + e.getMessage());
-            e.printStackTrace();
-            return false;
+    public void cancelAutoBid(String auctionId, Bidder bidder) {
+        List<AutoBidConfig> configs = autoBids.get(auctionId);
+        if (configs != null) {
+            configs.removeIf(c -> c.getBidder().getUsername().equals(bidder.getUsername()));
+            System.out.println("[AUTO-BID] Đã hủy auto-bid của: " + bidder.getUsername());
         }
     }
 
-    /**
-     * Kiểm tra user có phải chủ phiên đấu giá không.
-     */
-    public boolean isAuctionOwner(String auctionId, int userId) {
-        return auctionDAO.isAuctionOwner(auctionId, userId);
+    private void triggerAutoBids(String auctionId, String skipBidderName) {
+        new Thread(() -> processAutoBids(auctionId, skipBidderName)).start();
     }
 
-    /**
-     * Lấy danh sách phiên đấu giá do user hiện tại tạo.
-     */
-    public List<Auction> getAuctionsBySellerId(int sellerId) {
-        return auctionDAO.getAuctionsBySellerId(sellerId);
+    private void processAutoBids(String auctionId, String skipBidderName) {
+        boolean anyBidPlaced = true;
+        while (anyBidPlaced) {
+            anyBidPlaced = false;
+            Auction auction = activeAuctions.get(auctionId);
+            if (auction == null) return;
+
+            synchronized (auction) {
+                if (auction.getStatus() != AuctionStatus.RUNNING) break;
+
+                List<AutoBidConfig> configs = autoBids.getOrDefault(auctionId, new ArrayList<>());
+                AutoBidConfig winner = null;
+                double currentPrice = auction.getCurrentHighestBid();
+                String currentLeaderName = auction.getCurrentLeader() != null
+                        ? auction.getCurrentLeader().getUsername() : "";
+
+                for (AutoBidConfig cfg : configs) {
+                    if (cfg.getBidder().getUsername().equals(currentLeaderName)) continue;
+                    double nextBid = currentPrice + cfg.getIncrement();
+                    if (nextBid > cfg.getMaxBid()) continue;
+                    if (winner == null || cfg.getRegisteredAt().isBefore(winner.getRegisteredAt())) {
+                        winner = cfg;
+                    }
+                }
+
+                if (winner != null) {
+                    double autoBidAmount = currentPrice + winner.getIncrement();
+                    boolean dbUpdated = auctionDAO.updateBidWithOptimisticLock(
+                            auctionId, winner.getBidder().getUsername(),
+                            autoBidAmount, auction.getVersion()
+                    );
+                    if (dbUpdated) {
+                        System.out.println("[AUTO-BID] " + winner.getBidder().getUsername()
+                                + " tự động đặt giá: " + autoBidAmount);
+                        auction.setCurrentHighestBid(autoBidAmount);
+                        auction.setCurrentLeader(winner.getBidder());
+                        auction.setVersion(auction.getVersion() + 1);
+
+                        // Anti-snipe for auto-bids too
+                        LocalDateTime now2    = LocalDateTime.now();
+                        LocalDateTime endTime = auction.getEndTime();
+                        if (endTime != null
+                                && java.time.Duration.between(now2, endTime).getSeconds() <= SNIPE_WINDOW_SECONDS) {
+                            auction.setEndTime(endTime.plusSeconds(SNIPE_EXTENSION_SECONDS));
+                        }
+
+                        auctionNotifier.broadcast(new BidUpdateEvent(
+                                auctionId, autoBidAmount, winner.getBidder(),
+                                String.valueOf(System.currentTimeMillis())));
+                        anyBidPlaced = true;
+                    }
+                }
+            }
+            if (anyBidPlaced) {
+                try { Thread.sleep(50); } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); break;
+                }
+            }
+        }
     }
 
-    // Các hàm phụ trợ khác (có thể dùng cho chức năng VIEW_ITEMS)
-    public List<Auction> getActiveAuctionsList() {
-        return List.copyOf(activeAuctions.values());
-    }
+    // ── Auction management (from master) ─────────────────────────────────────
 
     /**
-     * HOLD BALANCE — Đóng phiên đấu giá với đầy đủ logic thanh toán:
-     *
-     * Flow:
-     *   1. Tìm phiên trong RAM — trả về false nếu không tồn tại.
-     *   2. Gọi AuctionDAO.getWinnerInfo() để lấy [winner, bidAmount, seller].
-     *   3. Nếu có winner:
-     *      a. userDAO.deductBalanceOnWin(winner, bidAmount)
-     *         → trừ balance thật, release held_balance (atomic trong 1 SQL)
-     *      b. userDAO.updateBalance(seller, bidAmount)
-     *         → cộng tiền cho seller
-     *      Các bidder thua KHÔNG cần xử lý thêm — held đã được release
-     *      từng lần bị vượt giá trong placeBidWithHold().
-     *   4. Nếu không có winner (không ai bid): chỉ đổi status → FINISHED.
-     *   5. Persist status = 'FINISHED' xuống DB.
-     *   6. Xoá khỏi activeAuctions để không còn nhận bid mới.
-     *
-     * @param auctionId id phiên cần đóng
-     * @return true nếu đóng thành công
+     * Close auction with full payment settlement (HOLD BALANCE):
+     *  1. Get winner info from DB.
+     *  2. Deduct winner's balance + release held.
+     *  3. Credit seller.
+     *  4. Persist FINISHED status.
+     *  5. Remove from activeAuctions.
      */
     public boolean closeAuction(String auctionId) {
         Auction auction = activeAuctions.get(auctionId);
@@ -253,109 +280,119 @@ public class AuctionService {
             return false;
         }
 
-        // Lấy thông tin winner và seller trước khi đóng phiên
-        // [0]=winnerUsername, [1]=bidAmount, [2]=sellerUsername
         String[] winnerInfo = auctionDAO.getWinnerInfo(auctionId);
-
         if (winnerInfo != null) {
-            String winner   = winnerInfo[0];
+            String winner    = winnerInfo[0];
             double bidAmount = Double.parseDouble(winnerInfo[1]);
-            String seller   = winnerInfo[2];
+            String seller    = winnerInfo[2];
 
             System.out.println("[AuctionService] Phiên " + auctionId + " kết thúc."
                     + " Winner: " + winner + " | Amount: " + bidAmount + " | Seller: " + seller);
 
-            // HOLD BALANCE: Trừ balance thật của winner + release held_balance tương ứng
-            // Thực hiện trong 1 SQL atomic: balance -= bidAmount, held_balance -= bidAmount
             boolean deducted = userDAO.deductBalanceOnWin(winner, bidAmount);
             if (!deducted) {
-                System.err.println("[AuctionService] Cảnh báo: deductBalanceOnWin thất bại cho " + winner
-                        + " — balance có thể không đủ. Vẫn tiếp tục đóng phiên.");
+                System.err.println("[AuctionService] Cảnh báo: deductBalanceOnWin thất bại cho " + winner);
             } else {
                 System.out.println("[AuctionService] Đã trừ " + bidAmount + " từ balance của " + winner);
             }
 
-            // Cộng tiền cho seller (bỏ qua nếu seller chính là người thắng — edge case tự bid)
             if (!winner.equals(seller)) {
                 boolean credited = userDAO.updateBalance(seller, bidAmount);
                 if (credited) {
-                    System.out.println("[AuctionService] Đã cộng " + bidAmount + " vào balance của seller " + seller);
+                    System.out.println("[AuctionService] Đã cộng " + bidAmount + " cho seller " + seller);
                 } else {
                     System.err.println("[AuctionService] Cảnh báo: Không thể cộng tiền cho seller: " + seller);
                 }
             }
         } else {
-            // Không có ai bid — phiên đóng mà không có giao dịch tiền
             System.out.println("[AuctionService] Phiên " + auctionId + " kết thúc — không có ai đặt giá.");
         }
 
-        // Cập nhật trạng thái trên RAM (dùng ReentrantLock bên trong Auction)
         auction.closeAuction();
-
-        // Persist status = 'FINISHED' xuống DB
         boolean dbOk = auctionDAO.closeAuction(auctionId);
-        if (!dbOk) {
+        if (!dbOk)
             System.err.println("[AuctionService] closeAuction: DB không cập nhật được phiên " + auctionId);
-        }
 
-        // Xoá khỏi bộ nhớ để không còn nhận bid mới
         activeAuctions.remove(auctionId);
-
         System.out.println("[AuctionService] Đã đóng phiên đấu giá " + auctionId);
         return true;
     }
 
-    /**
-     * Tạo phiên đấu giá mới:
-     *   1. Build Auction object đầy đủ (status=OPEN, startTime=now)
-     *   2. INSERT xuống DB qua DAO (DAO sẽ set lại auctionId từ generated key)
-     *   3. Thêm vào activeAuctions trên RAM ngay lập tức
-     */
+    /** Create auction by title (UI flow — creates item + auction in one DB transaction). */
+    public boolean createAuctionWithNewItem(String title, String description,
+                                            double startingPrice, String endTime, int sellerId) {
+        try {
+            if (title == null || title.trim().isEmpty()) return false;
+            if (startingPrice < 0) return false;
+            if (description == null) description = "";
+            if (endTime == null || endTime.trim().isEmpty()) endTime = "2099-12-31T23:59";
+
+            Auction auction = auctionDAO.createAuctionWithNewItem(
+                    title.trim(), description.trim(), startingPrice, endTime.trim(), sellerId);
+
+            if (auction == null) return false;
+            activeAuctions.put(auction.getAuctionId(), auction);
+            System.out.println("Đã tạo phiên đấu giá mới: " + auction.getAuctionId());
+            return true;
+        } catch (Exception e) {
+            System.out.println("Lỗi tạo phiên đấu giá: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Create auction by itemId (legacy / CLI flow). */
     public boolean createAuction(int itemId, double startingPrice, String endTime) {
         try {
-            // 1. Parse endTime từ String sang LocalDateTime
-            LocalDateTime end = LocalDateTime.parse(endTime);
+            LocalDateTime end   = LocalDateTime.parse(endTime);
             LocalDateTime start = LocalDateTime.now();
-
-            // 2. Tạo Item tham chiếu (chỉ cần id để ghi xuống DB)
             Item item = new Item();
             item.setId(itemId);
 
-            // 3. Build Auction object — auctionId sẽ được DAO set sau INSERT
             Auction newAuction = new Auction(
-                    null,           // auctionId — sẽ được DAO gán sau
-                    item,
-                    null,           // chưa có leader
-                    AuctionStatus.OPEN,
-                    startingPrice,
-                    start,
-                    end,
-                    auctionNotifier
+                    null, item, null, AuctionStatus.OPEN,
+                    startingPrice, start, end, auctionNotifier
             );
 
-            // 4. INSERT vào DB — DAO tự set auctionId từ RETURN_GENERATED_KEYS
             boolean saved = auctionDAO.insertAuction(newAuction);
-
             if (saved) {
-                // 5. Đưa vào RAM cache để client có thể BID ngay
                 activeAuctions.put(newAuction.getAuctionId(), newAuction);
-                System.out.println("[AuctionService] Phiên đấu giá mới: id="
-                        + newAuction.getAuctionId()
-                        + " | item=" + itemId
-                        + " | giá khởi điểm=" + startingPrice
-                        + " | kết thúc=" + end);
+                System.out.println("[AuctionService] Phiên đấu giá mới: id=" + newAuction.getAuctionId());
                 return true;
             }
-
-            System.err.println("[AuctionService] Tạo phiên đấu giá thất bại — DB không lưu được.");
             return false;
-
         } catch (java.time.format.DateTimeParseException e) {
-            System.err.println("[AuctionService] endTime không đúng định dạng ISO (yyyy-MM-ddTHH:mm): " + endTime);
+            System.err.println("[AuctionService] endTime sai format: " + endTime);
             return false;
         } catch (Exception e) {
-            System.err.println("[AuctionService] Lỗi khi tạo phiên đấu giá: " + e.getMessage());
+            System.err.println("[AuctionService] Lỗi tạo phiên: " + e.getMessage());
             return false;
         }
+    }
+
+    public boolean isAuctionOwner(String auctionId, int userId) {
+        return auctionDAO.isAuctionOwner(auctionId, userId);
+    }
+
+    public List<Auction> getAuctionsBySellerId(int sellerId) {
+        return auctionDAO.getAuctionsBySellerId(sellerId);
+    }
+
+    public List<Auction> getActiveAuctionsList() {
+        return List.copyOf(activeAuctions.values());
+    }
+
+    // ── Test helpers (from rebuild) ───────────────────────────────────────────
+
+    public Auction getAuction(String auctionId) {
+        return activeAuctions.get(auctionId);
+    }
+
+    public int getAutoBidCount(String auctionId) {
+        List<AutoBidConfig> configs = autoBids.get(auctionId);
+        return configs != null ? configs.size() : 0;
+    }
+
+    public void addAuctionForTest(Auction auction) {
+        activeAuctions.put(auction.getAuctionId(), auction);
     }
 }

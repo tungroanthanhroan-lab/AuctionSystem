@@ -1,30 +1,36 @@
 package org.example.observer;
 
-
-import org.example.model.Auction;
 import org.example.model.Bidder;
-
 import java.io.Serializable;
 
+/**
+ * Event broadcast to all connected clients when a new bid succeeds.
+ *
+ * MERGE NOTE: This is the rebuild version. The key difference from master:
+ *   - Stores auctionId as a plain String instead of an Auction reference.
+ *   - This avoids circular serialization issues when sending over ObjectOutputStream.
+ *   - getBidder() returns String (username), not the full Bidder object,
+ *     so AuctionClient can print it without needing the full class on the client side.
+ */
 public class BidUpdateEvent implements Serializable {
-    private Auction auction;
+    private String auctionId;
     private double newHighestAmount;
     private Bidder bidder;
     private String timestamp;
 
-    public BidUpdateEvent(Auction auction, double newHighestAmount, Bidder bidder, String timestamp) {
-        this.auction = auction;
+    public BidUpdateEvent(String auctionId, double newHighestAmount, Bidder bidder, String timestamp) {
+        this.auctionId        = (auctionId != null) ? auctionId : "";
         this.newHighestAmount = newHighestAmount;
-        this.bidder = bidder;
-        this.timestamp = timestamp;
+        this.bidder           = bidder;
+        this.timestamp        = timestamp;
     }
 
     public String getAuctionId() {
-        return auction.getAuctionId();
+        return auctionId;
     }
 
-    public void setAuction(Auction auction) {
-        this.auction = auction;
+    public void setAuctionId(String auctionId) {
+        this.auctionId = auctionId;
     }
 
     public double getNewHighestAmount() {
@@ -35,8 +41,9 @@ public class BidUpdateEvent implements Serializable {
         this.newHighestAmount = newHighestAmount;
     }
 
+    /** Returns the bidder's username — safe for serialization and client-side printing */
     public String getBidder() {
-        return bidder.getUsername();
+        return bidder != null ? bidder.getUsername() : "";
     }
 
     public void setBidder(Bidder bidder) {
