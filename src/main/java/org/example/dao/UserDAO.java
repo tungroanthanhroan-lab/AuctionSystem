@@ -282,4 +282,34 @@ public class UserDAO {
             throw new RuntimeException("Không hỗ trợ SHA-256!", e);
         }
     }
+    public boolean holdBalance(String username, double amount) {
+        String sql = "UPDATE users SET held_balance = held_balance + ? "
+                + "WHERE username = ? AND (balance - held_balance) >= ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setDouble(1, amount);
+            pstmt.setString(2, username);
+            pstmt.setDouble(3, amount);
+            int rows = pstmt.executeUpdate();
+            if (rows == 0)
+                System.out.println("[DB] holdBalance thất bại: " + username + " insufficient balance");
+            return rows > 0;
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi holdBalance: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean releaseHeldBalance(String username, double amount) {
+        String sql = "UPDATE users SET held_balance = MAX(0, held_balance - ?) WHERE username = ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setDouble(1, amount);
+            pstmt.setString(2, username);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi releaseHeldBalance: " + e.getMessage());
+            return false;
+        }
+    }
 }
