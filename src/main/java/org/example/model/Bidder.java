@@ -1,6 +1,9 @@
 package org.example.model;
 
-public class Bidder extends User {
+import java.io.Serializable;
+
+public class Bidder extends User implements Serializable {
+    private static final long serialVersionUID = 1L;
     private double balance;
 
     /** Full constructor — used when loading from DB */
