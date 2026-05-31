@@ -29,13 +29,10 @@ public class HomeController {
 
     @FXML
     private Button btnChangePassword;
-    @FXML
-    private Label balanceLabel;
     private final NetworkService networkService = new NetworkService();
     public void setUser(User user) {
         this.currentUser = user;
         welcomeLabel.setText("Xin chào, " + user.getUsername() + " (" + user.getRole() + ")");
-        fetchBalanceSilent();
     }
 
     /**
@@ -169,13 +166,51 @@ public class HomeController {
      */
     @FXML
     private void handleCheckBalance() {
-        // Gọi hàm chạy ngầm để cập nhật con số lên dòng chữ (Label) trên màn hình
-        fetchBalanceSilent();
+        try {
+            String response = networkService.sendMessage("CHECK_BALANCE");
 
-        // Hiện một thông báo nhỏ cho người dùng biết là đã làm mới xong
-        showAlert(Alert.AlertType.INFORMATION,
-                "Thành công",
-                "Đã cập nhật số dư mới nhất!");
+            System.out.println("Server trả về số dư: " + response);
+
+            if (response == null || response.trim().isEmpty()) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi",
+                        "Server không trả về dữ liệu số dư!");
+                return;
+            }
+
+            if (response.startsWith("ERROR")) {
+                showAlert(Alert.AlertType.ERROR,
+                        "Lỗi kết nối",
+                        response.replace("ERROR|", ""));
+                return;
+            }
+
+            if (response.startsWith("FAIL")) {
+                showAlert(Alert.AlertType.WARNING,
+                        "Không thể kiểm tra số dư",
+                        response.replace("FAIL|", ""));
+                return;
+            }
+
+            if (response.startsWith("BALANCE|")) {
+                String balance = response.replace("BALANCE|", "").trim();
+
+                showAlert(Alert.AlertType.INFORMATION,
+                        "Số dư tài khoản",
+                        "Số dư hiện tại của bạn là: " + balance + " $");
+                return;
+            }
+
+            showAlert(Alert.AlertType.WARNING,
+                    "Phản hồi không xác định",
+                    response);
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không thể kiểm tra số dư!");
+            e.printStackTrace();
+        }
     }
     /**
      * Hàm kiểm tra số dư
@@ -241,7 +276,7 @@ public class HomeController {
                 showAlert(Alert.AlertType.INFORMATION,
                         "Nạp tiền thành công",
                         response.replace("SUCCESS|", ""));
-                fetchBalanceSilent();
+
                 /*
                  * Sau khi nạp thành công, hỏi lại số dư để user thấy thay đổi.
                  */
@@ -350,25 +385,6 @@ public class HomeController {
             showAlert(Alert.AlertType.ERROR,
                     "Lỗi",
                     "Không thể đổi mật khẩu!");
-            e.printStackTrace();
-        }
-    }
-    private void fetchBalanceSilent() {
-        try {
-            String response = networkService.sendMessage("CHECK_BALANCE");
-            if (response != null && response.startsWith("BALANCE|")) {
-                String[] parts = response.split("\\|");
-                javafx.application.Platform.runLater(() -> {
-                    if (parts.length >= 4) {
-                        // Kịch bản backend đã cập nhật 3 loại tiền
-                        balanceLabel.setText(String.format("Tổng: %s $  |  Khả dụng: %s $  |  Tạm giữ: %s $", parts[1], parts[3], parts[2]));
-                    } else if (parts.length >= 2) {
-                        // Kịch bản backend chưa cập nhật
-                        balanceLabel.setText("Số dư hiện tại: " + parts[1] + " $");
-                    }
-                });
-            }
-        } catch (Exception e) {
             e.printStackTrace();
         }
     }

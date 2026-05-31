@@ -24,7 +24,7 @@ import org.example.service.NetworkService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+
 public class BiddingController {
 
     @FXML
@@ -344,8 +344,7 @@ public class BiddingController {
 
             if (endTimeText != null && !endTimeText.isEmpty() && !endTimeText.equals("-")) {
                 try {
-                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-                    auctionEndTime = LocalDateTime.parse(endTimeText.trim(), formatter);
+                    auctionEndTime = LocalDateTime.parse(endTimeText.trim().replace(" ", "T"));
                     startCountdown();
                 } else {
                     lblCountdown.setText("Thời gian còn lại: Không xác định");
@@ -418,30 +417,7 @@ public class BiddingController {
                         "Phải đặt giá cao hơn " + giaHienTai + "$");
                 return;
             }
-// --- THÊM LOGIC KIỂM TRA SỐ DƯ KHẢ DỤNG ---
-            try {
-                String balanceResponse = networkService.sendMessage("CHECK_BALANCE");
-                if (balanceResponse != null && balanceResponse.startsWith("BALANCE|")) {
-                    String[] parts = balanceResponse.split("\\|");
-                    double availableBalance = 0.0;
 
-                    // Dựa theo code Backend: BALANCE | Tổng | Tạm_giữ | Khả_dụng
-                    if (parts.length >= 4) {
-                        availableBalance = Double.parseDouble(parts[3]); // Tiền khả dụng nằm ở vị trí số 2 (parts[3])
-                    }
-
-                    // Nếu số tiền nhập vào LỚN HƠN tiền khả dụng -> Báo lỗi và chặn lại!
-                    if (giaDat > availableBalance) {
-                        hienThiPopup(Alert.AlertType.WARNING,
-                                "Số dư không đủ",
-                                "Số dư khả dụng của bạn (" + availableBalance + " $) không đủ để thực hiện mức giá này!\nVui lòng nạp thêm tiền.");
-                        return; // Chặn đứng, không gửi lệnh BID
-                    }
-                }
-            } catch (Exception e) {
-                System.out.println("Lỗi khi kiểm tra số dư trước khi bid: " + e.getMessage());
-            }
-            // --- KẾT THÚC LOGIC KIỂM TRA SỐ DƯ ---
             String username = AppSession.getCurrentUsername();
 
             String auctionId = auctionName.split(" - ")[0].trim();
@@ -658,17 +634,12 @@ public class BiddingController {
                         System.out.println("[AutoRefresh] Đã cập nhật giá mới: " + giaHienTai);
                     }
 
-                    if (finalRefreshedEndTime != null && !finalRefreshedEndTime.isEmpty() && !finalRefreshedEndTime.equals("-")) {
+                    if (finalRefreshedEndTime != null
+                            && !finalRefreshedEndTime.isEmpty()
+                            && !finalRefreshedEndTime.equals("-")) {
                         try {
-                            // 1. Khai báo định dạng khớp với chuỗi Server gửi về (yyyy-MM-dd HH:mm:ss)
-                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-                            // 2. Parse trực tiếp chuỗi từ server, KHÔNG cần .replace(" ", "T") nữa
-                            auctionEndTime = LocalDateTime.parse(finalRefreshedEndTime.trim(), formatter);
-
-                        } catch (Exception e) {
-                            System.out.println("[LỖI] Không thể parse thời gian: " + finalRefreshedEndTime);
-                            auctionEndTime = null;
+                            auctionEndTime = LocalDateTime.parse(finalRefreshedEndTime.trim().replace(" ", "T"));
+                        } catch (Exception ignored) {
                         }
                     }
                     // ──────────────────────────────────────────────────────
