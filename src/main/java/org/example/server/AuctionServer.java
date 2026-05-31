@@ -44,8 +44,13 @@ public class AuctionServer {
         AuctionNotifier notifier   = new AuctionNotifier();
         UserService     userService = new UserService(userDAO);
 
-        // MERGE: pass userDAO for HOLD BALANCE support (rebuild only passed 2 args here)
-        AuctionService auctionService = new AuctionService(auctionDAO, notifier, userDAO);
+        // ════════════════════════════════════════════════════════════════
+        // FIX BUG: Truyền bidDAO vào AuctionService để processAutoBids()
+        // có thể gọi bidDAO.placeBid() sau mỗi auto-bid thành công.
+        // Trước đây dùng constructor 3 tham số (không có bidDAO) khiến
+        // auto-bid không được ghi vào bảng bids → không hiện trong lịch sử.
+        // ════════════════════════════════════════════════════════════════
+        AuctionService auctionService = new AuctionService(auctionDAO, notifier, userDAO, bidDAO);
 
         // 3. Thread pool with limit to protect against DoS
         ExecutorService clientPool = Executors.newFixedThreadPool(MAX_THREADS);

@@ -6,6 +6,7 @@ import org.example.model.User;
 import org.example.observer.AuctionNotifier;
 import org.example.observer.AuctionObserver;
 import org.example.observer.BidUpdateEvent;
+import org.example.model.Bidder;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -99,9 +100,14 @@ public class ClientHandler implements Runnable, AuctionObserver {
                 handleDeposit(command);
             } else if (command.startsWith("CHECK_BALANCE")) {
                 handleCheckBalance();
+            } else if (command.startsWith("SET_AUTO_BID")) {
+                handleSetAutoBid(command);
+            } else if (command.startsWith("CANCEL_AUTO_BID")) {
+                handleCancelAutoBid(command);
             } else {
                 sendResponse("FAIL|Không hiểu lệnh: " + command);
             }
+
         } catch (IOException e) {
             System.err.println("[Server] Lỗi gửi response: " + e.getMessage());
         }
@@ -396,4 +402,79 @@ public class ClientHandler implements Runnable, AuctionObserver {
             e.printStackTrace();
         }
     }
+    private void handleSetAutoBid(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        // Format: SET_AUTO_BID|auctionId|maxBid|increment
+        String[] parts = command.split("\\|");
+        if (parts.length != 4) {
+            sendResponse("FAIL|Sai format. Dùng: SET_AUTO_BID|auctionId|maxBid|increment");
+            return;
+        }
+        try {
+            String auctionId = parts[1].trim();
+            double maxBid    = Double.parseDouble(parts[2].trim());
+            double increment = Double.parseDouble(parts[3].trim());
+
+            if (auctionService.isAuctionOwner(auctionId, loggedInUser.getId())) {
+                sendResponse("FAIL|Bạn không thể đặt auto-bid cho phiên của chính mình");
+                return;
+            }
+
+            // Kiểm tra số dư: yêu cầu ít nhất đủ để đặt 1 lần = giá hiện tại + increment
+            double available = userService.getAvailableBalance(loggedInUser.getUsername());
+            if (available < maxBid) {
+                sendResponse("FAIL|Số dư khả dụng (" + String.format("%.2f", available)
+                        + " $) không đủ cho giá tối đa " + maxBid + " $");
+                return;
+            }
+
+            Bidder bidder = new Bidder(
+                    loggedInUser.getId(),
+                    loggedInUser.getUsername(),
+                    loggedInUser.getPassword(),
+                    loggedInUser.getRole(),
+                    available
+            );
+            AutoBidConfig config = new AutoBidConfig(bidder, maxBid, increment);
+            auctionService.registerAutoBid(auctionId, config);
+            sendResponse("SUCCESS|Auto-bid đã được kích hoạt. Giá tối đa: " + maxBid
+                    + " $, Bước giá: " + increment + " $");
+        } catch (NumberFormatException e) {
+            sendResponse("FAIL|maxBid hoặc increment không hợp lệ");
+        } catch (Exception e) {
+            sendResponse("FAIL|" + e.getMessage());
+        }
+    }
+
+    private void handleCancelAutoBid(String command) throws IOException {
+        if (loggedInUser == null) {
+            sendResponse("FAIL|Bạn cần đăng nhập trước");
+            return;
+        }
+        // Format: CANCEL_AUTO_BID|auctionId
+        String[] parts = command.split("\\|");
+        if (parts.length != 2) {
+            sendResponse("FAIL|Sai format. Dùng: CANCEL_AUTO_BID|auctionId");
+            return;
+        }
+        try {
+            String auctionId = parts[1].trim();
+            double available = userService.getAvailableBalance(loggedInUser.getUsername());
+            Bidder bidder = new Bidder(
+                    loggedInUser.getId(),
+                    loggedInUser.getUsername(),
+                    loggedInUser.getPassword(),
+                    loggedInUser.getRole(),
+                    available
+            );
+            auctionService.cancelAutoBid(auctionId, bidder);
+            sendResponse("SUCCESS|Đã hủy auto-bid thành công");
+        } catch (Exception e) {
+            sendResponse("FAIL|" + e.getMessage());
+        }
+    }
+
 }

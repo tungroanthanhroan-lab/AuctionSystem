@@ -1,6 +1,7 @@
 package org.example.service;
 
 import org.example.dao.AuctionDAO;
+import org.example.dao.BidDAO;
 import org.example.dao.UserDAO;
 import org.example.exception.InvalidBidException;
 import org.example.model.Auction;
@@ -20,7 +21,8 @@ public class AuctionService {
 
     private final AuctionDAO auctionDAO;
     private final AuctionNotifier auctionNotifier;
-    private final UserDAO userDAO;  // HOLD BALANCE: inject to check / deduct balances
+    private final UserDAO userDAO;
+    private final BidDAO bidDAO; // ← FIX: inject BidDAO để lưu auto-bid vào bảng bids
 
     private final ConcurrentHashMap<String, Auction> activeAuctions;
     private final ConcurrentHashMap<String, List<AutoBidConfig>> autoBids;
@@ -29,10 +31,18 @@ public class AuctionService {
     private static final long SNIPE_WINDOW_SECONDS    = 60;
     private static final long SNIPE_EXTENSION_SECONDS = 120;
 
+    // ← FIX: constructor cũ (3 tham số) vẫn giữ để không phá các test đang dùng
     public AuctionService(AuctionDAO auctionDAO, AuctionNotifier auctionNotifier, UserDAO userDAO) {
+        this(auctionDAO, auctionNotifier, userDAO, null);
+    }
+
+    // ← FIX: constructor mới (4 tham số) — AuctionServer sẽ dùng cái này
+    public AuctionService(AuctionDAO auctionDAO, AuctionNotifier auctionNotifier,
+                          UserDAO userDAO, BidDAO bidDAO) {
         this.auctionDAO      = auctionDAO;
         this.auctionNotifier = auctionNotifier;
         this.userDAO         = userDAO;
+        this.bidDAO          = bidDAO; // có thể null nếu dùng constructor cũ (unit test)
         this.activeAuctions  = new ConcurrentHashMap<>();
         this.autoBids        = new ConcurrentHashMap<>();
         loadActiveAuctionsFromDB();
@@ -103,13 +113,12 @@ public class AuctionService {
                 double prevAmount = auction.getCurrentHighestBid();
 
                 // HOLD BALANCE: check available_balance before touching DB.
-                // If the same bidder is raising their own bid, only the *difference*
-                // needs to come from available balance (the rest is already held).
                 double availableBalance = userDAO.getAvailableBalance(bidderName);
                 if (availableBalance < 0) {
                     System.out.println("[AuctionService] Không lấy được số dư của: " + bidderName);
                     return false;
                 }
+
                 boolean isSameBidder = bidderName.equals(prevLeader) && prevAmount > 0;
                 double requiredAvailable = isSameBidder ? (amount - prevAmount) : amount;
                 if (availableBalance < requiredAvailable) {
@@ -232,6 +241,40 @@ public class AuctionService {
                         auctionNotifier.broadcast(new BidUpdateEvent(
                                 auctionId, autoBidAmount, winner.getBidder(),
                                 String.valueOf(System.currentTimeMillis())));
+
+                        // ═══════════════════════════════════════════════════════════════
+                        // FIX BUG: Lưu auto-bid vào bảng bids để GET_BID_HISTORY
+                        // hiện đúng lịch sử của người dùng auto-bid (vd: vietanh).
+                        // Trước đây chỉ có updateBidWithOptimisticLock() (cập nhật bảng
+                        // auctions) mà không insert vào bảng bids → lịch sử bị thiếu.
+                        // ═══════════════════════════════════════════════════════════════
+                        if (bidDAO != null) {
+                            String autoBidderUsername = winner.getBidder().getUsername();
+                            int autoBidderId = winner.getBidder().getId();
+
+                            // Bidder được tạo từ AutoBidConfig có thể có id > 0 (set lúc
+                            // đăng ký qua handleSetAutoBid). Nếu id = 0, lookup lại từ DB.
+                            if (autoBidderId == 0) {
+                                autoBidderId = userDAO.getUserIdByUsername(autoBidderUsername);
+                            }
+
+                            if (autoBidderId > 0) {
+                                boolean saved = bidDAO.placeBid(
+                                        Integer.parseInt(auctionId), autoBidderId, autoBidAmount);
+                                if (saved) {
+                                    System.out.println("[AUTO-BID] Đã lưu bid vào DB: "
+                                            + autoBidderUsername + " → " + autoBidAmount);
+                                } else {
+                                    System.err.println("[AUTO-BID] Không lưu được bid vào DB: "
+                                            + autoBidderUsername);
+                                }
+                            } else {
+                                System.err.println("[AUTO-BID] Không tìm được userId cho: "
+                                        + autoBidderUsername + " — bỏ qua ghi bảng bids.");
+                            }
+                        }
+                        // ═══════════════════════════════════════════════════════════════
+
                         anyBidPlaced = true;
                     }
                 }

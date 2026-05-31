@@ -75,6 +75,11 @@
                         styleClass="primary-button"
                         defaultButton="true"
                         onAction="#handleDatGia"/>
+                <Button fx:id="btnAutoBid"
+                        text="🤖 Đặt giá tự động"
+                        styleClass="secondary-button"
+                        onAction="#handleOpenAutoBid"/>
+
 
                 <Label text="Lịch sử đấu giá"
                        style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;"/>

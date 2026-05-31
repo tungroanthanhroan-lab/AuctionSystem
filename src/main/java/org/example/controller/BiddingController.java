@@ -1,12 +1,14 @@
 package org.example.controller;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
@@ -93,6 +95,10 @@ public class BiddingController {
 
     private double giaHienTai = 0.0;
 
+    @FXML
+    private Button btnAutoBid;
+
+
     // ── Các định dạng datetime mà server có thể trả về ────────────────────
     private static final DateTimeFormatter FMT_SPACE  = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter FMT_T_SEC  = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
@@ -145,6 +151,14 @@ public class BiddingController {
                 event.consume();
             }
         });
+
+        btnAutoBid.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                handleOpenAutoBid();
+                event.consume();
+            }
+        });
+
 
         btnQuayLai.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
@@ -414,24 +428,21 @@ public class BiddingController {
                 return;
             }
 
-            // --- BẮT ĐẦU SỬA TỪ ĐÂY ---
-
             // 1. Khóa nút ngay lập tức để tránh bấm loạn xạ
             btnDatGia.setDisable(true);
 
             // 2. Chạy việc gửi tin nhắn trong một Thread riêng để không làm đơ giao diện
             new Thread(() -> {
                 try {
-                    String auctionId = currentAuctionId; // Sử dụng biến ID đã có sẵn
+                    String auctionId = currentAuctionId;
                     String message = "BID|" + auctionId + "|" + giaDat;
 
-                    // Gửi lệnh tới Server
                     String response = networkService.sendMessage(message);
                     System.out.println("Server trả về: " + response);
 
                     // 3. Quay lại luồng UI để cập nhật giao diện sau khi có phản hồi
                     Platform.runLater(() -> {
-                        btnDatGia.setDisable(false); // Mở khóa nút
+                        btnDatGia.setDisable(false);
 
                         if (response == null || response.trim().isEmpty()) {
                             hienThiPopup(Alert.AlertType.ERROR, "Lỗi kết nối", "Server không trả về phản hồi!");
@@ -475,6 +486,48 @@ public class BiddingController {
             hienThiPopup(Alert.AlertType.ERROR, "Lỗi nhập liệu", "Vui lòng chỉ nhập số!");
         }
     }
+
+    @FXML
+    private void handleOpenAutoBid() {
+        if (!phienDangMo) {
+            hienThiPopup(Alert.AlertType.WARNING,
+                    "Phiên đã đóng",
+                    "Phiên đấu giá đã kết thúc, không thể đặt auto-bid!");
+            return;
+        }
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/auto-bid-view.fxml")
+            );
+            Parent root = loader.load();
+
+            AutoBidController ctrl = loader.getController();
+            ctrl.init(currentAuctionId, giaHienTai, networkService);
+
+            Stage dialog = new Stage();
+            dialog.initModality(Modality.APPLICATION_MODAL);
+            dialog.initOwner(btnAutoBid.getScene().getWindow());
+            dialog.setTitle("Đặt giá tự động - Phiên " + currentAuctionId);
+            dialog.setResizable(false);
+            dialog.setScene(new Scene(root));
+            dialog.showAndWait();
+        } catch (IOException e) {
+            hienThiPopup(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không mở được cửa sổ Auto-Bid: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Được gọi từ bên ngoài (ví dụ AutoBidController hoặc real-time push)
+     * để cập nhật giá mới lên UI mà không cần refresh toàn bộ.
+     */
+    public void nhanGiaMoiTuServer(double giaMoi) {
+        this.giaHienTai = giaMoi;
+        capNhatGiaTrenUI(giaMoi, null);
+    }
+
     private void capNhatGiaTrenUI(double giaMoi, String currentLeader) {
         Platform.runLater(() -> {
             lblGiaHienTai.setText("Giá hiện tại: " + giaMoi + " $");
@@ -546,7 +599,6 @@ public class BiddingController {
         } else if (hours > 0) {
             timeText = String.format("%d giờ %02d phút", hours, minutes);
         } else {
-            // Dưới 1 giờ: hiển thị thêm giây cho chính xác
             long secs = seconds % 60;
             timeText = String.format("%d phút %02d giây", minutes, secs);
         }
@@ -574,10 +626,8 @@ public class BiddingController {
                 return;
             }
 
-            // Gửi lệnh lấy dữ liệu từ Server
             String response = networkService.sendMessage("VIEW_ITEMS");
 
-            // Nếu response báo lỗi kết nối, ném ngoại lệ để nhảy xuống khối catch xử lý UI
             if (response == null || response.startsWith("ERROR")) {
                 throw new Exception(response);
             }
@@ -601,13 +651,10 @@ public class BiddingController {
                 String currentLeader = (fields.length >= 5) ? fields[4].trim() : "";
                 String refreshedEndTime = (fields.length >= 6) ? fields[5].trim() : (fields.length == 5 ? fields[4].trim() : "");
 
-                // Cập nhật giao diện
                 Platform.runLater(() -> {
-                    // 1. Phục hồi trạng thái hiển thị bình thường nếu trước đó bị mờ do mất kết nối
                     lblTrangThai.setOpacity(1.0);
                     listLichSuBid.setOpacity(1.0);
 
-                    // 2. Cập nhật giá và người dẫn đầu
                     if (serverPrice != giaHienTai) {
                         giaHienTai = serverPrice;
                         lblGiaHienTai.setText("Giá hiện tại: " + giaHienTai + " $");
@@ -618,16 +665,13 @@ public class BiddingController {
                             lblNguoiDanDau.setText("Người dẫn đầu: Chưa có");
                         }
 
-                        // Chỉ load lại lịch sử khi có giá mới để tiết kiệm băng thông
                         loadBidHistoryFromServer();
                     }
 
-                    // 3. Cập nhật thời gian kết thúc bằng hàm parseEndTime thông minh
                     if (!refreshedEndTime.isEmpty() && !refreshedEndTime.equals("-")) {
                         auctionEndTime = parseEndTime(refreshedEndTime);
                     }
 
-                    // 4. Xử lý trạng thái đóng/mở phiên
                     boolean serverAuctionOpen = status.equalsIgnoreCase("OPEN") || status.equalsIgnoreCase("RUNNING");
                     if (serverAuctionOpen) {
                         lblTrangThai.setText("Trạng thái: ĐANG MỞ");
@@ -644,15 +688,12 @@ public class BiddingController {
             }
 
         } catch (Exception e) {
-            // KHI LỖI: Không hiện Alert Popup làm treo App
             System.out.println("[AutoRefresh] Tạm thời mất kết nối: " + e.getMessage());
 
             Platform.runLater(() -> {
-                // Cập nhật nhẹ lên giao diện để người dùng biết
                 lblTrangThai.setText("Trạng thái: Đang kết nối lại...");
                 lblTrangThai.setStyle("-fx-text-fill: gray;");
 
-                // Làm mờ danh sách lịch sử để báo hiệu dữ liệu cũ
                 listLichSuBid.setOpacity(0.5);
             });
         }
@@ -784,38 +825,32 @@ public class BiddingController {
     private void loadBidHistoryFromServer() {
         new Thread(() -> {
             try {
-                if (currentAuctionId == null || currentAuctionId.trim().isEmpty()) {
-                    return;
-                }
+                if (currentAuctionId == null || currentAuctionId.trim().isEmpty()) return;
 
-                // Gửi lệnh lấy lịch sử
                 String response = networkService.sendMessage("GET_BID_HISTORY|" + currentAuctionId);
                 System.out.println("Server trả về lịch sử bid: " + response);
 
-                if (response == null || !response.startsWith("BID_HISTORY")) {
-                    return;
-                }
+                if (response == null || !response.startsWith("BID_HISTORY")) return;
 
-                // Tách dữ liệu
+                // Lưu vào biến final để dùng được trong lambda
+                final String finalResponse = response;
                 String[] parts = response.split("\\|");
 
-                // Quay lại luồng UI để cập nhật danh sách hiển thị
                 Platform.runLater(() -> {
                     listLichSuBid.getItems().clear();
 
                     if (parts.length <= 2) {
                         listLichSuBid.getItems().add("Chưa có lượt đặt giá nào.");
+                        rebuildChart(finalResponse); // vẫn gọi để clear chart
                         return;
                     }
 
                     for (int i = 2; i < parts.length; i++) {
                         String[] fields = parts[i].split(",", -1);
-
                         if (fields.length >= 4) {
                             String username = fields[1].trim();
-                            String amount = fields[2].trim();
-                            String time = fields[3].trim();
-
+                            String amount   = fields[2].trim();
+                            String time     = fields[3].trim();
                             listLichSuBid.getItems().add(
                                     username + " đã đặt " + amount + " $ lúc " + time
                             );
@@ -824,10 +859,7 @@ public class BiddingController {
                         }
                     }
 
-                    /* * Nếu mày có hàm vẽ biểu đồ thì bỏ comment dòng dưới này ra.
-                     * Nếu không có hoặc bị báo đỏ lỗi 'rebuildChart' thì cứ để comment như này.
-                     */
-                    // rebuildChart(response);
+                    rebuildChart(finalResponse); // ← BỎ COMMENT + dùng finalResponse
                 });
 
             } catch (Exception e) {
@@ -835,6 +867,7 @@ public class BiddingController {
             }
         }).start();
     }
+
     /**
      * Rebuilds the LineChart from the raw BID_HISTORY response string.
      *
@@ -852,17 +885,12 @@ public class BiddingController {
             chartEpochOrigin = -1;
 
             String[] parts = bidHistoryResponse.split("\\|");
-            if (parts.length <= 2) return;   // no bids yet
+            if (parts.length <= 2) return;
 
             DateTimeFormatter fmt1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             DateTimeFormatter fmt2 = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
-            // ── Step 1: parse all valid bids into a list ─────────────────
-            java.util.List<long[]> bids = new java.util.ArrayList<>();
-            // each entry: [epochSec, amountBits] — store amount as bits for long array
-
             java.util.List<double[]> bidPairs = new java.util.ArrayList<>();
-            // each entry: [epochSec as double, amount]
 
             for (int i = 2; i < parts.length; i++) {
                 String[] fields = parts[i].split(",", -1);
@@ -891,10 +919,8 @@ public class BiddingController {
 
             if (bidPairs.isEmpty()) return;
 
-            // ── Step 2: sort oldest → newest so X-axis is always positive ─
             bidPairs.sort((a, b) -> Double.compare(a[0], b[0]));
 
-            // ── Step 3: origin = earliest bid → elapsed is always ≥ 0 ────
             chartEpochOrigin = (long) bidPairs.get(0)[0];
 
             for (double[] pair : bidPairs) {
