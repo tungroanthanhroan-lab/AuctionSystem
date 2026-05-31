@@ -85,3 +85,7 @@ Hệ thống đã hoàn thiện các chức năng lõi sau:
   - Đặt giá (Bid) kiểm tra logic giá phải cao hơn giá hiện tại.
   - Xem lịch sử đặt giá của một phiên cụ thể (Get Bid History).
 - **Real-time (Thời gian thực):** Thông báo ngay lập tức cho các Client khi có một người chơi đặt giá mới thành công thông qua mẫu thiết kế Observer và TCP Socket.
+
+## 7. Link báo cáo và Video Demo
+- **Báo cáo hệ thống (PDF):** [Bao_cao_he_thong.pdf](./Bao_cao_he_thong.pdf)
+- **Video Demo:** [Link Video Demo](#) *(Cập nhật link video YouTube/Drive tại đây)*
