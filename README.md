@@ -56,7 +56,7 @@ src/main/java/org/example/
 
 **Windows:**
 ```cmd
-mvnw.cmd clean install -DskipTests
+.\mvnw.cmd clean install -DskipTests
 ```
 
 **macOS / Linux:**
@@ -70,7 +70,7 @@ mvnw.cmd clean install -DskipTests
 
 **Windows:**
 ```cmd
-mvnw.cmd exec:java -Dexec.mainClass="org.example.server.AuctionServer"
+.\mvnw.cmd exec:java "-Dexec.mainClass=org.example.server.AuctionServer"
 ```
 
 **macOS / Linux:**
@@ -86,7 +86,7 @@ mvnw.cmd exec:java -Dexec.mainClass="org.example.server.AuctionServer"
 
 **Windows:**
 ```cmd
-mvnw.cmd javafx:run
+.\mvnw.cmd javafx:run
 ```
 
 **macOS / Linux:**
@@ -98,7 +98,7 @@ mvnw.cmd javafx:run
 
 **Windows:**
 ```cmd
-mvnw.cmd exec:java -Dexec.mainClass="org.example.client.AuctionClient"
+.\mvnw.cmd exec:java "-Dexec.mainClass=org.example.client.AuctionClient"
 ```
 
 **macOS / Linux:**
@@ -133,4 +133,4 @@ mvnw.cmd exec:java -Dexec.mainClass="org.example.client.AuctionClient"
 
 ## 7. Link báo cáo và Video Demo
 - **Báo cáo hệ thống (PDF):** [Bao_cao_he_thong.pdf](./Bao_cao_he_thong.pdf)
-- **Video Demo:** [https://drive.google.com/file/d/1oAncvqr5XIFQGlcR4EDgOYUAKQ7Usvle/view?usp=drivesdk](#) *(Cập nhật link video YouTube/Drive tại đây)*
+- **Video Demo:** [https://drive.google.com/file/d/1oAncvqr5XIFQGlcR4EDgOYUAKQ7Usvle/view?usp=drivesdk](https://drive.google.com/file/d/1oAncvqr5XIFQGlcR4EDgOYUAKQ7Usvle/view?usp=drivesdk)
