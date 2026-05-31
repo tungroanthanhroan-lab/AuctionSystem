@@ -76,6 +76,24 @@ public class Auction {
         this.currentHighestBid = 0;
         this.bidHistory = new ArrayList<>();
         this.version = 0;
+        // ✅ Parse và gán endTime
+        if (endTime != null && !endTime.isBlank() && !endTime.equals("-")) {
+            try {
+                this.endTime = LocalDateTime.parse(endTime.replace(" ", "T"));
+            } catch (Exception e1) {
+                try {
+                    this.endTime = LocalDateTime.parse(endTime,
+                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                } catch (Exception e2) {
+                    try {
+                        this.endTime = LocalDateTime.parse(endTime,
+                                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                    } catch (Exception ignored) {
+                        this.endTime = null;
+                    }
+                }
+            }
+        }
     }
 
     private AuctionStatus parseStatus(String statusStr) {

@@ -534,13 +534,23 @@ public class BiddingController {
             return;
         }
 
-        long hours = seconds / 3600;
-        long minutes = (seconds % 3600) / 60;
-        long secs = seconds % 60;
+        long totalMinutes = seconds / 60;
+        long hours   = totalMinutes / 60;
+        long minutes = totalMinutes % 60;
+        long days    = hours / 24;
+        long remHours = hours % 24;
 
-        lblCountdown.setText(
-                String.format("Thời gian còn lại: %02d:%02d:%02d", hours, minutes, secs)
-        );
+        String timeText;
+        if (days > 0) {
+            timeText = String.format("%d ngày %d giờ %02d phút", days, remHours, minutes);
+        } else if (hours > 0) {
+            timeText = String.format("%d giờ %02d phút", hours, minutes);
+        } else {
+            // Dưới 1 giờ: hiển thị thêm giây cho chính xác
+            long secs = seconds % 60;
+            timeText = String.format("%d phút %02d giây", minutes, secs);
+        }
+        lblCountdown.setText("Thời gian còn lại: " + timeText);
     }
 
     private void startAutoRefresh() {
