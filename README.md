@@ -133,4 +133,4 @@ mvnw.cmd exec:java -Dexec.mainClass="org.example.client.AuctionClient"
 
 ## 7. Link báo cáo và Video Demo
 - **Báo cáo hệ thống (PDF):** [Bao_cao_he_thong.pdf](./Bao_cao_he_thong.pdf)
-- **Video Demo:** [Link Video Demo](#) *(Cập nhật link video YouTube/Drive tại đây)*
+- **Video Demo:** [https://drive.google.com/file/d/1oAncvqr5XIFQGlcR4EDgOYUAKQ7Usvle/view?usp=drivesdk](#) *(Cập nhật link video YouTube/Drive tại đây)*
