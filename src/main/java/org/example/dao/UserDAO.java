@@ -22,11 +22,6 @@ public class UserDAO {
      * Also runs migration to add balance and held_balance columns for existing DBs.
      */
     public void createTableIfNotExists() {
-        /*
-         * Schema:
-         *   balance      — user's real balance
-         *   held_balance — money locked for active bids (available = balance - held_balance)
-         */
         String sql = "CREATE TABLE IF NOT EXISTS users ("
                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + "username TEXT UNIQUE NOT NULL,"
@@ -63,12 +58,11 @@ public class UserDAO {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi kiểm tra cột balance: " + e.getMessage());
-            return;
+            System.err.println("[DB] Lỗi check balance column: " + e.getMessage());
         }
         if (!hasColumn) {
             try (PreparedStatement stmt = conn.prepareStatement(alterSql)) {
-                stmt.executeUpdate();
+                stmt.execute();
                 System.out.println("[DB] Đã thêm cột balance vào bảng users.");
             } catch (SQLException e) {
                 System.err.println("[DB] Lỗi thêm cột balance: " + e.getMessage());
@@ -90,12 +84,11 @@ public class UserDAO {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi kiểm tra cột held_balance: " + e.getMessage());
-            return;
+            System.err.println("[DB] Lỗi check held_balance column: " + e.getMessage());
         }
         if (!hasColumn) {
             try (PreparedStatement stmt = conn.prepareStatement(alterSql)) {
-                stmt.executeUpdate();
+                stmt.execute();
                 System.out.println("[DB] Đã thêm cột held_balance vào bảng users.");
             } catch (SQLException e) {
                 System.err.println("[DB] Lỗi thêm cột held_balance: " + e.getMessage());
@@ -103,54 +96,31 @@ public class UserDAO {
         }
     }
 
-    public void createDefaultAdminIfNotExists() {
-        String checkSql = "SELECT COUNT(*) FROM users WHERE username = ?";
-        String insertSql = "INSERT INTO users(username, password, role, balance) VALUES(?, ?, ?, ?)";
-        String updateSql = "UPDATE users SET password = ?, role = ? WHERE username = ?";
+    private void createDefaultAdminIfNotExists() {
+        String checkSql = "SELECT COUNT(*) FROM users WHERE role = 'ADMIN'";
         Connection conn = DatabaseConnection.getConnection();
-        try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
-            checkStmt.setString(1, "admin");
-            boolean adminExists = false;
-            try (ResultSet rs = checkStmt.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) adminExists = true;
-            }
-            String hashedAdminPassword = hashPassword("admin123");
-            if (adminExists) {
-                try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
-                    updateStmt.setString(1, hashedAdminPassword);
-                    updateStmt.setString(2, "ADMIN");
-                    updateStmt.setString(3, "admin");
-                    updateStmt.executeUpdate();
-                    System.out.println("[DB] Đã cập nhật tài khoản admin mặc định: admin/admin123");
-                }
-                return;
-            }
-            try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
-                insertStmt.setString(1, "admin");
-                insertStmt.setString(2, hashedAdminPassword);
-                insertStmt.setString(3, "ADMIN");
-                insertStmt.setDouble(4, 0.0);
-                insertStmt.executeUpdate();
-                System.out.println("[DB] Đã tạo tài khoản admin mặc định: admin/admin123");
+        try (PreparedStatement stmt = conn.prepareStatement(checkSql);
+             ResultSet rs = stmt.executeQuery()) {
+            if (rs.next() && rs.getInt(1) == 0) {
+                registerUser("admin", "admin123", "ADMIN");
+                System.out.println("[DB] Đã tạo tài khoản admin mặc định (admin/admin123).");
             }
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi tạo/cập nhật admin mặc định: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("[DB] Lỗi kiểm tra admin: " + e.getMessage());
         }
     }
 
     public boolean registerUser(String username, String password, String role) {
         String hashedPassword = hashPassword(password);
-        String sql = "INSERT INTO users(username, password, role) VALUES(?,?,?)";
+        String sql = "INSERT INTO users(username, password, role) VALUES(?, ?, ?)";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, hashedPassword);
             pstmt.setString(3, role);
-            pstmt.executeUpdate();
-            return true;
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
-            System.out.println("[Auth] Đăng ký thất bại: Username '" + username + "' có thể đã tồn tại.");
+            System.err.println("[DB] Lỗi đăng ký: " + e.getMessage());
             return false;
         }
     }
@@ -173,23 +143,13 @@ public class UserDAO {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[Auth] Lỗi đăng nhập: " + e.getMessage());
+            System.err.println("[DB] Lỗi login: " + e.getMessage());
             e.printStackTrace();
         }
         return null;
     }
 
-    private String hashPassword(String password) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hashBytes = md.digest(password.getBytes());
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 không khả dụng", e);
-        }
-    }
+    // ── Balance management ────────────────────────────────────────────────────
 
     public double getBalance(String username) {
         String sql = "SELECT balance FROM users WHERE username = ?";
@@ -220,12 +180,12 @@ public class UserDAO {
     }
 
     public double getAvailableBalance(String username) {
-        String sql = "SELECT balance - held_balance AS available_balance FROM users WHERE username = ?";
+        String sql = "SELECT (balance - held_balance) AS available FROM users WHERE username = ?";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, username);
             try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) return rs.getDouble("available_balance");
+                if (rs.next()) return rs.getDouble("available");
             }
         } catch (SQLException e) {
             System.err.println("[DB] Lỗi getAvailableBalance: " + e.getMessage());
@@ -233,45 +193,9 @@ public class UserDAO {
         return -1;
     }
 
-    public boolean holdBalance(String username, double amount) {
-        String sql = "UPDATE users SET held_balance = held_balance + ? "
-                + "WHERE username = ? AND (balance - held_balance) >= ?";
-        Connection conn = DatabaseConnection.getConnection();
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setDouble(1, amount);
-            pstmt.setString(2, username);
-            pstmt.setDouble(3, amount);
-            int rows = pstmt.executeUpdate();
-            if (rows == 0)
-                System.out.println("[DB] holdBalance thất bại: " + username + " insufficient balance");
-            return rows > 0;
-        } catch (SQLException e) {
-            System.err.println("[DB] Lỗi holdBalance: " + e.getMessage());
-            return false;
-        }
-    }
-
-    public boolean releaseHeldBalance(String username, double amount) {
-        String sql = "UPDATE users SET held_balance = MAX(0, held_balance - ?) WHERE username = ?";
-        Connection conn = DatabaseConnection.getConnection();
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setDouble(1, amount);
-            pstmt.setString(2, username);
-            return pstmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            System.err.println("[DB] Lỗi releaseHeldBalance: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Atomically deduct winner's balance and release their held_balance in one SQL statement.
-     * Called when an auction session is closed.
-     */
     public boolean deductBalanceOnWin(String username, double bidAmount) {
         String sql = "UPDATE users "
-                + "SET balance = balance - ?, "
-                + "    held_balance = MAX(0, held_balance - ?) "
+                + "SET balance = balance - ?, held_balance = MAX(0, held_balance - ?) "
                 + "WHERE username = ? AND balance >= ?";
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -317,6 +241,45 @@ public class UserDAO {
         } catch (SQLException e) {
             System.err.println("[DB] Lỗi changePassword: " + e.getMessage());
             return false;
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // FIX BUG: Thêm method mới để AuctionService.processAutoBids() có thể
+    // lookup userId từ username của auto-bidder, phục vụ ghi vào bảng bids.
+    // Bidder trong AutoBidConfig đôi khi chỉ có username (id = 0) nên cần
+    // tra cứu thêm từ DB trước khi gọi bidDAO.placeBid(auctionId, userId, ...).
+    // ════════════════════════════════════════════════════════════════════════
+    /**
+     * Lấy userId từ username. Trả về 0 nếu không tìm thấy.
+     */
+    public int getUserIdByUsername(String username) {
+        String sql = "SELECT id FROM users WHERE username = ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) return rs.getInt("id");
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] Lỗi getUserIdByUsername: " + e.getMessage());
+        }
+        return 0;
+    }
+
+    // ── Password hashing ──────────────────────────────────────────────────────
+
+    private String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = md.digest(password.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Không hỗ trợ SHA-256!", e);
         }
     }
 }
