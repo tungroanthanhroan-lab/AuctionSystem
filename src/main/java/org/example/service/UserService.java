@@ -3,14 +3,9 @@ package org.example.service;
 import org.example.dao.UserDAO;
 import org.example.model.User;
 
-/**
- * UserService — tầng service quản lý người dùng.
- *
- * HOLD BALANCE: Bổ sung các phương thức delegate để lớp ngoài (ClientHandler, AuctionService)
- * có thể truy vấn và thao tác held_balance / available_balance mà không cần truy cập DAO trực tiếp.
- */
 public class UserService {
-    private UserDAO userDAO;
+
+    private final UserDAO userDAO;
 
     public UserService(UserDAO userDAO) {
         this.userDAO = userDAO;
@@ -24,34 +19,22 @@ public class UserService {
         return userDAO.registerUser(username, password, role);
     }
 
-    /**
-     * Lấy số dư thực tế (balance gốc) của user.
-     * Lưu ý: đây KHÔNG phải available_balance.
-     * Dùng getAvailableBalance() để biết user có thể bid bao nhiêu.
-     */
+    /** Số dư tổng/thô (bao gồm cả phần đang bị tạm giữ). Hãy dùng getAvailableBalance() để kiểm tra khi đặt giá (bid). */
     public double getBalance(String username) {
         return userDAO.getBalance(username);
     }
 
-    /**
-     * HOLD BALANCE: Lấy số tiền đang bị đóng băng (held_balance).
-     */
+    /** Số tiền hiện đang bị khóa/tạm giữ cho các lượt đặt giá đang diễn ra. */
     public double getHeldBalance(String username) {
         return userDAO.getHeldBalance(username);
     }
 
-    /**
-     * HOLD BALANCE: Lấy available_balance = balance - held_balance.
-     * Đây là số tiền user thực sự có thể dùng để bid.
-     */
+    /** Số tiền thực tế người dùng có thể chi tiêu (số dư tổng - số tiền tạm giữ). */
     public double getAvailableBalance(String username) {
         return userDAO.getAvailableBalance(username);
     }
 
-    /**
-     * Nạp tiền vào tài khoản.
-     * Cũng dùng để cộng tiền cho seller khi phiên kết thúc.
-     */
+    /** Nạp tiền / cộng tiền vào tài khoản. Đồng thời cũng được dùng để thanh toán cho người bán khi phiên đấu giá kết thúc. */
     public boolean updateBalance(String username, double amount) {
         return userDAO.updateBalance(username, amount);
     }

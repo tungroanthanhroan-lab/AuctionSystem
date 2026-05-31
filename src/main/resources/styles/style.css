@@ -97,3 +97,78 @@
     -fx-text-fill: #dc2626;
     -fx-font-weight: bold;
 }
+/* ── Panel cards ─────────────────────────────────────────────────────────── */
+
+.panel-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.10), 14, 0.12, 0, 3);
+}
+
+/* ── Bid input highlight box (inline style in FXML, no extra class needed) ─ */
+
+/* Hover state for the bid button (overrides inline style) */
+#btnDatGia:hover {
+    -fx-background-color: #1d4ed8;
+}
+
+#btnDatGia:pressed {
+    -fx-background-color: #1e40af;
+    -fx-scale-x: 0.98;
+    -fx-scale-y: 0.98;
+}
+
+/* ── Bid History Line Chart ─────────────────────────────────────────────── */
+
+.bid-chart {
+    -fx-background-color: transparent;
+    -fx-padding: 4;
+}
+
+.bid-chart .chart-content {
+    -fx-padding: 8;
+}
+
+.bid-chart .chart-plot-background {
+    -fx-background-color: #f8fafc;
+    -fx-background-radius: 8;
+}
+
+.bid-chart .chart-vertical-grid-lines {
+    -fx-stroke: #e2e8f0;
+    -fx-stroke-dash-array: 4 4;
+}
+
+.bid-chart .chart-horizontal-grid-lines {
+    -fx-stroke: #e2e8f0;
+    -fx-stroke-dash-array: 4 4;
+}
+
+.bid-chart .chart-alternative-row-fill {
+    -fx-fill: transparent;
+}
+
+/* The price curve line */
+.bid-chart .default-color0.chart-series-line {
+    -fx-stroke: #2563eb;
+    -fx-stroke-width: 2.5;
+}
+
+/* Data-point dots */
+.bid-chart .default-color0.chart-line-symbol {
+    -fx-background-color: #2563eb, white;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 6px;
+    -fx-padding: 5px;
+}
+
+.bid-chart .axis-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #64748b;
+    -fx-font-family: "Segoe UI";
+}
+
+.bid-chart .axis {
+    -fx-tick-label-fill: #64748b;
+    -fx-font-size: 11px;
+}

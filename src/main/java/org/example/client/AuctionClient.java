@@ -11,8 +11,15 @@ import java.util.concurrent.Executors;
 /**
  * Client đấu giá — kết nối tới AuctionServer qua TCP Socket.
  *
- * FIX BUG 11: Thay PrintWriter/BufferedReader bằng ObjectOutputStream/ObjectInputStream
+ * FIX BUG 11: Dùng ObjectOutputStream/ObjectInputStream thay vì PrintWriter/BufferedReader
  *             để đồng nhất protocol với server (tránh StreamCorruptedException).
+ *
+ * MERGE RESOLUTION (Minor — IP input removed in rebuild):
+ *  - rebuild: removed the "enter server IP" prompt, hardcoded HOST = "localhost"
+ *  - master:  kept the IP input feature so testers can connect to a remote server
+ *
+ * KEEP: master's IP input feature — useful for a student group project where server
+ * and client may run on different machines on the same LAN.
  */
 public class AuctionClient {
 
@@ -27,7 +34,7 @@ public class AuctionClient {
         String inputIp = ipScanner.nextLine().trim();
 
         if (!inputIp.isEmpty()) {
-            HOST = inputIp; // Ghi đè biến HOST bằng IP vừa nhập
+            HOST = inputIp;
         }
 
         System.out.println("Đang kết nối tới " + HOST + ":" + PORT + " ...");
@@ -35,7 +42,6 @@ public class AuctionClient {
         try (Socket socket = new Socket(HOST, PORT)) {
             System.out.println("Kết nối thành công!\n");
 
-            // FIX BUG 11: Dùng ObjectStream — cùng protocol với server
             // LUÔN tạo Output trước Input để tránh Deadlock TCP
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
             out.flush();
@@ -62,10 +68,9 @@ public class AuctionClient {
                 }
             });
 
-            // Đọc lệnh từ bàn phím
             System.out.println("Nhập lệnh (REGISTER|LOGIN|VIEW_ITEMS|BID|CREATE_AUCTION|EXIT):");
-            System.out.println("  Ví dụ tạo phiên: CREATE_AUCTION|itemId|startingPrice|endTime");
-            System.out.println("  (endTime dạng ISO: 2025-12-31T23:59, chỉ ADMIN mới dùng được)");
+            System.out.println("  Ví dụ tạo phiên: CREATE_AUCTION|title|startingPrice|endTime");
+            System.out.println("  (endTime dạng ISO: 2025-12-31T23:59)");
             Scanner scanner = new Scanner(System.in);
             while (scanner.hasNextLine()) {
                 String input = scanner.nextLine().trim();
