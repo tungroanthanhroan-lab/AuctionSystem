@@ -4,6 +4,8 @@ import org.example.model.Auction;
 import org.example.model.Bidder;
 import org.example.model.Item;
 import org.example.util.DatabaseConnection;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -308,10 +310,28 @@ public class AuctionDAO {
 
             conn.commit();
 
+            // Parse endTime String → LocalDateTime để gán vào Auction object
+            LocalDateTime endTimeParsed = null;
+            if (endTime != null && !endTime.isBlank()) {
+                try {
+                    endTimeParsed = LocalDateTime.parse(endTime.replace(" ", "T"));
+                } catch (Exception e1) {
+                    try {
+                        endTimeParsed = LocalDateTime.parse(endTime,
+                                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                    } catch (Exception e2) {
+                        try {
+                            endTimeParsed = LocalDateTime.parse(endTime,
+                                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+
             Auction auction = new Auction(
                     String.valueOf(auctionId), null, null,
                     org.example.model.AuctionStatus.OPEN, startingPrice,
-                    null, null, null
+                    LocalDateTime.now(), endTimeParsed, null
             );
 
             Item item = new Item(itemId, title, description, startingPrice, startingPrice,
