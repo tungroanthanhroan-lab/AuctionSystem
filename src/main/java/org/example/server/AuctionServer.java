@@ -44,7 +44,6 @@ public class AuctionServer {
         AuctionNotifier notifier   = new AuctionNotifier();
         UserService     userService = new UserService(userDAO);
 
-        // MERGE: pass userDAO for HOLD BALANCE support (rebuild only passed 2 args here)
         AuctionService auctionService = new AuctionService(auctionDAO, notifier, userDAO);
 
         // 3. Thread pool with limit to protect against DoS
