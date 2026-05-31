@@ -141,6 +141,7 @@ public class AuctionDAO {
                                     String newBidder, double newAmount, int expectedVersion,
                                     String prevLeader, double prevAmount) {
         Connection conn = DatabaseConnection.getConnection();
+        boolean isSameBidder = (prevLeader != null && prevLeader.equals(newBidder) && prevAmount > 0);
         try {
             conn.setAutoCommit(false);
 
@@ -162,14 +163,24 @@ public class AuctionDAO {
                 }
             }
 
-            // Step 2: Hold new bidder's money (only if available balance >= amount)
-            String holdSql = "UPDATE users "
-                    + "SET held_balance = held_balance + ? "
-                    + "WHERE username = ? AND (balance - held_balance) >= ?";
+            // Step 2: Hold new bidder's money.
+            // If the same bidder is raising their own bid, we only need them to have the
+            // *difference* in available_balance (since prevAmount is already held for them).
+            // We still increase held_balance by the full newAmount here; Step 3 will then
+            // release prevAmount so the net change is correct (+newAmount -prevAmount).
+            String holdSql = isSameBidder
+                    // Same bidder re-bid: require only the extra delta in available balance
+                    ? "UPDATE users SET held_balance = held_balance + ? "
+                        + "WHERE username = ? AND (balance - held_balance) >= ?"
+                    // Different bidder: require full newAmount available
+                    : "UPDATE users SET held_balance = held_balance + ? "
+                        + "WHERE username = ? AND (balance - held_balance) >= ?";
+
+            double requiredAvailable = isSameBidder ? (newAmount - prevAmount) : newAmount;
             try (PreparedStatement pstmt = conn.prepareStatement(holdSql)) {
                 pstmt.setDouble(1, newAmount);
                 pstmt.setString(2, newBidder);
-                pstmt.setDouble(3, newAmount);
+                pstmt.setDouble(3, requiredAvailable);
                 int rows = pstmt.executeUpdate();
                 if (rows == 0) {
                     conn.rollback();
@@ -179,8 +190,11 @@ public class AuctionDAO {
                 }
             }
 
-            // Step 3: Release previous leader's held money (if applicable)
-            if (prevLeader != null && !prevLeader.isEmpty() && !prevLeader.equals(newBidder) && prevAmount > 0) {
+            // Step 3: Release previous held money.
+            // Case A — different bidder was outbid: release their previous hold.
+            // Case B — same bidder raised their own bid: release their OLD hold
+            //          (Step 2 already added the full newAmount, so net = newAmount).
+            if (prevLeader != null && !prevLeader.isEmpty() && prevAmount > 0) {
                 String releaseSql = "UPDATE users "
                         + "SET held_balance = MAX(0, held_balance - ?) "
                         + "WHERE username = ?";
@@ -188,8 +202,14 @@ public class AuctionDAO {
                     pstmt.setDouble(1, prevAmount);
                     pstmt.setString(2, prevLeader);
                     pstmt.executeUpdate();
-                    System.out.println("[DB] placeBidWithHold: Released " + prevAmount
-                            + " for " + prevLeader + " (outbid)");
+                    if (isSameBidder) {
+                        System.out.println("[DB] placeBidWithHold: Same bidder raised bid — released old hold "
+                                + prevAmount + " for " + prevLeader
+                                + " (net held change: +" + (newAmount - prevAmount) + ")");
+                    } else {
+                        System.out.println("[DB] placeBidWithHold: Released " + prevAmount
+                                + " for " + prevLeader + " (outbid)");
+                    }
                 }
             }
 

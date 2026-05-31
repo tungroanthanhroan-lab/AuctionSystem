@@ -24,6 +24,7 @@ import org.example.service.NetworkService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class BiddingController {
 
@@ -343,8 +344,8 @@ public class BiddingController {
             }
 
             if (endTimeText != null && !endTimeText.isEmpty() && !endTimeText.equals("-")) {
-                try {
-                    auctionEndTime = LocalDateTime.parse(endTimeText.trim().replace(" ", "T"));
+                auctionEndTime = parseEndTime(endTimeText);
+                if (auctionEndTime != null) {
                     startCountdown();
                 } else {
                     lblCountdown.setText("Thời gian còn lại: Không xác định");

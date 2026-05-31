@@ -98,23 +98,26 @@ public class AuctionService {
                     }
                 }
 
-                // HOLD BALANCE: check available_balance before touching DB
+                String prevLeader = (auction.getCurrentLeader() != null)
+                        ? auction.getCurrentLeader().getUsername() : null;
+                double prevAmount = auction.getCurrentHighestBid();
+
+                // HOLD BALANCE: check available_balance before touching DB.
+                // If the same bidder is raising their own bid, only the *difference*
+                // needs to come from available balance (the rest is already held).
                 double availableBalance = userDAO.getAvailableBalance(bidderName);
                 if (availableBalance < 0) {
                     System.out.println("[AuctionService] Không lấy được số dư của: " + bidderName);
                     return false;
                 }
-                if (availableBalance < amount) {
+                boolean isSameBidder = bidderName.equals(prevLeader) && prevAmount > 0;
+                double requiredAvailable = isSameBidder ? (amount - prevAmount) : amount;
+                if (availableBalance < requiredAvailable) {
                     System.out.println("[AuctionService] " + bidderName + " không đủ available_balance: "
-                            + availableBalance + " < " + amount);
+                            + availableBalance + " < " + requiredAvailable
+                            + (isSameBidder ? " (chỉ cần phần chênh lệch vì đang giữ " + prevAmount + ")" : ""));
                     return false;
                 }
-
-                String prevLeader = (auction.getCurrentLeader() != null)
-                        ? auction.getCurrentLeader().getUsername() : null;
-                double prevAmount = auction.getCurrentHighestBid();
-
-                // Atomic DB transaction: hold + release + optimistic lock
                 boolean dbOk = auctionDAO.placeBidWithHold(
                         auctionId, bidderName, amount, auction.getVersion(),
                         prevLeader, prevAmount
