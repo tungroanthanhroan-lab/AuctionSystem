@@ -27,12 +27,17 @@
                maxWidth="340"/>
 
         <Label text="Bạn có thể tham gia đấu giá hoặc tạo phiên đấu giá mới."
+
                styleClass="subtitle-label"
                wrapText="true"
                alignment="CENTER"
                textAlignment="CENTER"
                maxWidth="320"/>
-
+        <Label fx:id="balanceLabel"
+               text="Thông tin ví: Đang tải..."
+               style="-fx-font-weight: bold; -fx-text-fill: #2e7d32;"
+               wrapText="true"
+               alignment="CENTER"/>
         <Button text="Tham gia đấu giá"
                 styleClass="primary-button"
                 onAction="#handleViewAuctions"/>
@@ -59,7 +64,6 @@
                 prefWidth="220"
                 prefHeight="42"
                 onAction="#handleDeposit"/>
-
         <Button fx:id="btnChangePassword"
                 text="Đổi mật khẩu"
                 styleClass="secondary-button"
