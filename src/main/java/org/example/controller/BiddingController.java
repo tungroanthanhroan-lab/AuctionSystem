@@ -1,12 +1,14 @@
 package org.example.controller;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
@@ -93,6 +95,10 @@ public class BiddingController {
 
     private double giaHienTai = 0.0;
 
+    @FXML
+    private Button btnAutoBid;
+
+
     // ── Các định dạng datetime mà server có thể trả về ────────────────────
     private static final DateTimeFormatter FMT_SPACE  = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter FMT_T_SEC  = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
@@ -145,6 +151,14 @@ public class BiddingController {
                 event.consume();
             }
         });
+
+        btnAutoBid.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                handleOpenAutoBid();
+                event.consume();
+            }
+        });
+
 
         btnQuayLai.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.UP) {
@@ -481,6 +495,39 @@ public class BiddingController {
                     "Vui lòng chỉ nhập số (ví dụ: 1000), không nhập chữ!");
         }
     }
+
+    @FXML
+    private void handleOpenAutoBid() {
+        if (!phienDangMo) {
+            hienThiPopup(Alert.AlertType.WARNING,
+                    "Phiên đã đóng",
+                    "Phiên đấu giá đã kết thúc, không thể đặt auto-bid!");
+            return;
+        }
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/views/auto-bid-view.fxml")
+            );
+            Parent root = loader.load();
+
+            AutoBidController ctrl = loader.getController();
+            ctrl.init(currentAuctionId, giaHienTai, networkService);
+
+            Stage dialog = new Stage();
+            dialog.initModality(Modality.APPLICATION_MODAL);
+            dialog.initOwner(btnAutoBid.getScene().getWindow());
+            dialog.setTitle("Đặt giá tự động - Phiên " + currentAuctionId);
+            dialog.setResizable(false);
+            dialog.setScene(new Scene(root));
+            dialog.showAndWait();
+        } catch (IOException e) {
+            hienThiPopup(Alert.AlertType.ERROR,
+                    "Lỗi",
+                    "Không mở được cửa sổ Auto-Bid: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 
     public void nhanGiaMoiTuServer(double giaMoi) {
         this.giaHienTai = giaMoi;
