@@ -40,7 +40,7 @@ src/main/java/org/example/
 ## 4. Câu lệnh dòng lệnh để chạy chương trình
 
 > **Lưu ý quan trọng:**
-> - Dự án dùng **Maven Wrapper** — thay vì lệnh `mvn`, hãy dùng `mvnw.cmd` (Windows) hoặc `./mvnw` (macOS/Linux).
+> - Dự án dùng **Maven Wrapper** — thay vì lệnh `mvn`, hãy dùng `.\mvnw.cmd` (Windows) hoặc `./mvnw` (macOS/Linux).
 > - Maven Wrapper sẽ **tự động tải Maven** về máy khi chạy lần đầu (cần có Internet).
 > - Mọi lệnh bên dưới phải được chạy trong **terminal mở tại thư mục dự án**.
 
