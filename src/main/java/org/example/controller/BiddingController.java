@@ -164,16 +164,29 @@ public class BiddingController {
             bidChart.setLegendVisible(false);
 
             if (xAxis != null) {
-                xAxis.setAutoRanging(true);
-                xAxis.setTickLabelFormatter(new javafx.util.StringConverter<Number>() {
-                    @Override
-                    public String toString(Number n) {
-                        // Show elapsed seconds as "Xs" label
-                        return n.intValue() + "s";
-                    }
-                    @Override
-                    public Number fromString(String s) { return 0; }
-                });
+                xAxis.setAutoRanging(false);
+
+                xAxis.setLowerBound(0);
+                xAxis.setUpperBound(10);
+
+                xAxis.setTickUnit(1);
+
+                xAxis.setMinorTickVisible(false);
+
+                xAxis.setTickLabelFormatter(
+                        new javafx.util.StringConverter<>() {
+
+                            @Override
+                            public String toString(Number value) {
+                                return String.format("%.0fs", value.doubleValue());
+                            }
+
+                            @Override
+                            public Number fromString(String string) {
+                                return 0;
+                            }
+                        }
+                );
             }
 
             if (yAxis != null) {
@@ -868,8 +881,22 @@ public class BiddingController {
             for (double[] pair : bidPairs) {
                 long elapsed = (long) pair[0] - chartEpochOrigin;
                 double amount = pair[1];
-                bidSeries.getData().add(new XYChart.Data<>(elapsed, amount));
+
+                bidSeries.getData().add(
+                        new XYChart.Data<>(elapsed, amount)
+                );
             }
+
+            if (!bidPairs.isEmpty()) {
+                long maxElapsed =
+                        (long) bidPairs.get(bidPairs.size() - 1)[0]
+                                - chartEpochOrigin;
+
+                xAxis.setUpperBound(
+                        Math.max(10, maxElapsed + 2)
+                );
+            }
+
         });
     }
 }
