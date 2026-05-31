@@ -40,7 +40,7 @@ src/main/java/org/example/
 ## 4. Câu lệnh dòng lệnh để chạy chương trình
 
 > **Lưu ý quan trọng:**
-> - Dự án dùng **Maven Wrapper** — thay vì lệnh `mvn`, hãy dùng `mvnw.cmd` (Windows) hoặc `./mvnw` (macOS/Linux).
+> - Dự án dùng **Maven Wrapper** — thay vì lệnh `mvn`, hãy dùng `.\mvnw.cmd` (Windows) hoặc `./mvnw` (macOS/Linux).
 > - Maven Wrapper sẽ **tự động tải Maven** về máy khi chạy lần đầu (cần có Internet).
 > - Mọi lệnh bên dưới phải được chạy trong **terminal mở tại thư mục dự án**.
 
@@ -56,7 +56,7 @@ src/main/java/org/example/
 
 **Windows:**
 ```cmd
-mvnw.cmd clean install -DskipTests
+.\mvnw.cmd clean install -DskipTests
 ```
 
 **macOS / Linux:**
@@ -70,7 +70,7 @@ mvnw.cmd clean install -DskipTests
 
 **Windows:**
 ```cmd
-mvnw.cmd exec:java -Dexec.mainClass="org.example.server.AuctionServer"
+.\mvnw.cmd exec:java "-Dexec.mainClass=org.example.server.AuctionServer"
 ```
 
 **macOS / Linux:**
@@ -86,7 +86,7 @@ mvnw.cmd exec:java -Dexec.mainClass="org.example.server.AuctionServer"
 
 **Windows:**
 ```cmd
-mvnw.cmd javafx:run
+.\mvnw.cmd javafx:run
 ```
 
 **macOS / Linux:**
@@ -98,7 +98,7 @@ mvnw.cmd javafx:run
 
 **Windows:**
 ```cmd
-mvnw.cmd exec:java -Dexec.mainClass="org.example.client.AuctionClient"
+.\mvnw.cmd exec:java "-Dexec.mainClass=org.example.client.AuctionClient"
 ```
 
 **macOS / Linux:**
@@ -133,4 +133,4 @@ mvnw.cmd exec:java -Dexec.mainClass="org.example.client.AuctionClient"
 
 ## 7. Link báo cáo và Video Demo
 - **Báo cáo hệ thống (PDF):** [Bao_cao_he_thong.pdf](./Bao_cao_he_thong.pdf)
-- **Video Demo:** [https://drive.google.com/file/d/1oAncvqr5XIFQGlcR4EDgOYUAKQ7Usvle/view?usp=drivesdk](#) *(Cập nhật link video YouTube/Drive tại đây)*
+- **Video Demo:** [https://drive.google.com/file/d/1oAncvqr5XIFQGlcR4EDgOYUAKQ7Usvle/view?usp=drivesdk](https://drive.google.com/file/d/1oAncvqr5XIFQGlcR4EDgOYUAKQ7Usvle/view?usp=drivesdk)
