@@ -19,7 +19,8 @@
             style="-fx-background-color: linear-gradient(to bottom right, #e0f2fe, #f8fafc);">
 
     <center>
-        <HBox spacing="0"
+        <!-- FIX UI: alignment CENTER giúp cả 2 panel căn giữa màn hình -->
+        <HBox spacing="20"
               style="-fx-padding: 24; -fx-alignment: CENTER;"
               BorderPane.alignment="CENTER">
 
@@ -96,11 +97,13 @@
             </VBox>
 
             <!-- ══ RIGHT PANEL — realtime chart ══════════════════════════ -->
+            <!-- FIX UI: bỏ HBox.hgrow="ALWAYS", đặt prefWidth + maxWidth cố định
+                         để biểu đồ không chiếm toàn bộ màn hình -->
             <VBox spacing="10"
                   styleClass="panel-card"
-                  HBox.hgrow="ALWAYS"
-                  style="-fx-padding: 32 28 32 28; -fx-margin: 0 0 0 20;"
-                  VBox.vgrow="ALWAYS">
+                  prefWidth="500"
+                  maxWidth="560"
+                  style="-fx-padding: 32 28 32 28;">
 
                 <Label text="Biểu đồ giá theo thời gian thực"
                        style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1e293b;"
@@ -108,6 +111,7 @@
                        textAlignment="CENTER"
                        maxWidth="Infinity"/>
 
+                <!-- FIX UI: prefHeight + maxHeight giới hạn chiều cao biểu đồ -->
                 <LineChart fx:id="bidChart"
                            styleClass="bid-chart"
                            animated="false"
@@ -115,7 +119,8 @@
                            legendVisible="false"
                            VBox.vgrow="ALWAYS"
                            maxWidth="Infinity"
-                           maxHeight="Infinity">
+                           prefHeight="360"
+                           maxHeight="440">
 
                     <xAxis>
                         <NumberAxis fx:id="xAxis"

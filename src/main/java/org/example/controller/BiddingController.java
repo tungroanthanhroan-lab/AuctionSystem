@@ -93,6 +93,13 @@ public class BiddingController {
 
     private double giaHienTai = 0.0;
 
+    // ── Các định dạng datetime mà server có thể trả về ────────────────────
+    private static final DateTimeFormatter FMT_SPACE  = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter FMT_T_SEC  = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    private static final DateTimeFormatter FMT_SPACE_MIN = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    // ISO_LOCAL_DATE_TIME xử lý "yyyy-MM-ddTHH:mm" và "yyyy-MM-ddTHH:mm:ss"
+    // ──────────────────────────────────────────────────────────────────────
+
     // ── Chart initialisation ───────────────────────────────────────────────
     /**
      * Called automatically by the FXML loader after all @FXML fields are
@@ -196,6 +203,37 @@ public class BiddingController {
         }
     }
     // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * Thử parse chuỗi datetime với nhiều định dạng khác nhau.
+     * Server có thể trả về các format: "yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss",
+     * "yyyy-MM-dd HH:mm", "yyyy-MM-dd HH:mm:ss".
+     *
+     * @return LocalDateTime nếu parse thành công, null nếu thất bại.
+     */
+    private LocalDateTime parseEndTime(String raw) {
+        if (raw == null || raw.isBlank() || raw.equals("-")) return null;
+
+        String s = raw.trim();
+
+        // Thử từng định dạng theo thứ tự phổ biến nhất
+        // 1. "yyyy-MM-dd HH:mm:ss" (SQLite thường lưu dạng này)
+        try { return LocalDateTime.parse(s, FMT_SPACE); } catch (Exception ignored) {}
+
+        // 2. "yyyy-MM-ddTHH:mm:ss"
+        try { return LocalDateTime.parse(s, FMT_T_SEC); } catch (Exception ignored) {}
+
+        // 3. "yyyy-MM-dd HH:mm" (không có giây)
+        try { return LocalDateTime.parse(s, FMT_SPACE_MIN); } catch (Exception ignored) {}
+
+        // 4. ISO standard "yyyy-MM-ddTHH:mm" hoặc "yyyy-MM-ddTHH:mm:ss" (Java built-in)
+        try { return LocalDateTime.parse(s); } catch (Exception ignored) {}
+
+        // 5. Thử thay dấu cách thành T rồi parse lại (phòng ngừa format hỗn hợp)
+        try { return LocalDateTime.parse(s.replace(" ", "T")); } catch (Exception ignored) {}
+
+        return null; // Tất cả đều thất bại
+    }
 
     @FXML
     public void setAuctionInfo(String auctionInfo) {
@@ -305,19 +343,21 @@ public class BiddingController {
                 }
             }
 
-            if (endTimeText != null && !endTimeText.isEmpty() && !endTimeText.equals("-")) {
-                try {
-                    auctionEndTime = LocalDateTime.parse(endTimeText.trim().replace(" ", "T"));
+            // ── FIX: Parse endTime với nhiều định dạng datetime ───────────
+            if (endTimeText != null && !endTimeText.isBlank() && !endTimeText.equals("-")) {
+                auctionEndTime = parseEndTime(endTimeText);
+
+                if (auctionEndTime != null) {
                     startCountdown();
-                } catch (Exception parseException) {
+                } else {
                     lblCountdown.setText("Thời gian còn lại: Không xác định");
-                    System.out.println("Không parse được endTime: " + endTimeText);
-                    parseException.printStackTrace();
+                    System.out.println("[Countdown] Không parse được endTime: '" + endTimeText + "'");
                 }
             } else {
                 lblCountdown.setText("Thời gian còn lại: Không xác định");
-                System.out.println("auctionInfo không có endTime: " + originalAuctionInfo);
+                System.out.println("[Countdown] auctionInfo không có endTime: " + originalAuctionInfo);
             }
+            // ──────────────────────────────────────────────────────────────
 
             txtNhapGia.setDisable(!phienDangMo);
             btnDatGia.setDisable(!phienDangMo);
@@ -597,14 +637,16 @@ public class BiddingController {
                         System.out.println("[AutoRefresh] Đã cập nhật giá mới: " + giaHienTai);
                     }
 
+                    // ── FIX: dùng parseEndTime khi refresh ─────────────────
                     if (finalRefreshedEndTime != null
-                            && !finalRefreshedEndTime.isEmpty()
+                            && !finalRefreshedEndTime.isBlank()
                             && !finalRefreshedEndTime.equals("-")) {
-                        try {
-                            auctionEndTime = LocalDateTime.parse(finalRefreshedEndTime.trim().replace(" ", "T"));
-                        } catch (Exception ignored) {
+                        LocalDateTime parsed = parseEndTime(finalRefreshedEndTime);
+                        if (parsed != null) {
+                            auctionEndTime = parsed;
                         }
                     }
+                    // ──────────────────────────────────────────────────────
 
                     boolean serverAuctionOpen = status.equalsIgnoreCase("OPEN")
                             || status.equalsIgnoreCase("RUNNING");
