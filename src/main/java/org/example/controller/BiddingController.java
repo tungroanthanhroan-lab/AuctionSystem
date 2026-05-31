@@ -343,10 +343,8 @@ public class BiddingController {
                 }
             }
 
-            // ── FIX: Parse endTime với nhiều định dạng datetime ───────────
-            if (endTimeText != null && !endTimeText.isBlank() && !endTimeText.equals("-")) {
+            if (endTimeText != null && !endTimeText.isEmpty() && !endTimeText.equals("-")) {
                 auctionEndTime = parseEndTime(endTimeText);
-
                 if (auctionEndTime != null) {
                     startCountdown();
                 } else {
@@ -637,13 +635,12 @@ public class BiddingController {
                         System.out.println("[AutoRefresh] Đã cập nhật giá mới: " + giaHienTai);
                     }
 
-                    // ── FIX: dùng parseEndTime khi refresh ─────────────────
                     if (finalRefreshedEndTime != null
-                            && !finalRefreshedEndTime.isBlank()
+                            && !finalRefreshedEndTime.isEmpty()
                             && !finalRefreshedEndTime.equals("-")) {
-                        LocalDateTime parsed = parseEndTime(finalRefreshedEndTime);
-                        if (parsed != null) {
-                            auctionEndTime = parsed;
+                        try {
+                            auctionEndTime = LocalDateTime.parse(finalRefreshedEndTime.trim().replace(" ", "T"));
+                        } catch (Exception ignored) {
                         }
                     }
                     // ──────────────────────────────────────────────────────

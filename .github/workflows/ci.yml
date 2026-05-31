@@ -23,7 +23,7 @@ jobs:
       - name: Cài đặt Java JDK
         uses: actions/setup-java@v4
         with:
-          java-version: '25'
+          java-version: '21'
           distribution: 'temurin' # Bản phân phối Java phổ biến và ổn định nhất
           cache: maven            # Bật cache để những lần sau Maven tải thư viện nhanh hơn
 
