@@ -81,14 +81,22 @@ public class NetworkService {
             Object response = in.readObject();
             if (response instanceof String) {
                 String res = (String) response;
-                // Chỉ trả về nếu là phản hồi trực tiếp cho lệnh (Tránh nhận nhầm tin nhắn rác)
-                if (res.startsWith("SUCCESS") || res.startsWith("FAIL") || res.startsWith("ERROR") ||
-                        res.startsWith("BID_HISTORY") || res.startsWith("AUCTIONS")) {
+
+                System.out.println("Server trả về: " + res);
+
+                // Gom tất cả điều kiện vào trong ngoặc của if
+                if (res.startsWith("SUCCESS") ||
+                        res.startsWith("FAIL") ||
+                        res.startsWith("ERROR") ||
+                        res.startsWith("BID_HISTORY") ||
+                        res.startsWith("AUCTIONS") ||
+                        res.startsWith("BALANCE") ||
+                        res.startsWith("MY_AUCTIONS")) { // Đóng ngoặc ở đây
+
                     return res;
                 }
             }
-            // Nếu là Object realtime khác, bỏ qua để đọc dòng tiếp theo
-            System.out.println("[Network] Bỏ qua tin nhắn phụ: " + response);
+            System.out.println("[Network] Bỏ qua tin nhắn thông báo: " + response);
         }
     }
     private static synchronized void closeConnectionOnly() {
